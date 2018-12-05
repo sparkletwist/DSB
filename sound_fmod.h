@@ -31,7 +31,7 @@ int play_3dsound(FMOD_SOUND *fs, const char *id, int lev, int xx, int yy, int);
 int play_ssound(FMOD_SOUND *fs, const char *id, int, int use3d);
 
 FMOD_SOUND *internal_load_sound_data(char *s_dataname);
-FMOD_SOUND *do_load_music(const char *musicname, char *id, int force);
+FMOD_SOUND *do_load_music(const char *musicname, const char *musiclongname, char *id, int force);
 
 char *hash_and_cache(lua_State *LUA, FMOD_SOUND *lua_sound, const char *name);
 void store_in_master_by_id(const char *unique_id, FMOD_SOUND *lua_sound);

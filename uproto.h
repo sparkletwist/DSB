@@ -65,8 +65,10 @@ void ppos_reassignment(int ap, int oppos, int nppos, int ox, int oy, int nx, int
 void import_lua_constants(void);
 void import_interface_constants(void);
 void activate_gui_zone(char *dstr, int zid, int x, int y, int w, int h, int flags);
-void internal_gui_command(const char cmd, int val);
+void internal_gui_command(const char *cmdstr, int val);
 void internal_shadeinfo(unsigned int arch, int otype, int odir, int d1, int d2, int d3);
+void internal_doorinfo(unsigned int view, unsigned int idx, int parm);
+void internal_guyiconinfo(unsigned int w, unsigned int h, unsigned int spcx, unsigned int spcy, int off_x, int off_y);
 void destroy_dynalloc_constants(void);
 
 void clear_lua_cz(void);
@@ -104,6 +106,7 @@ int levelxp(int level);
 void add_export_gvar(char *s_vname);
 void register_lua_objects();
 void import_shading_info(void);
+void import_door_draw_info(void);
 
 int systemtimer(void);
 int getsleeptime(void);

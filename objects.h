@@ -148,7 +148,7 @@ enum {
 };
 
 #define ARFLAG_FLY_ONLY         0x000001
-#define _ARFLAG_NOTUSED_1       0x000002
+#define ARFLAG_MULTIDRAW        0x000002
 #define ARFLAG_DROP_ZONE        0x000004
 #define ARFLAG_DRAW_CONTENTS    0x000008
 #define ARFLAG_NO_BUMP          0x000100
@@ -261,6 +261,10 @@ struct mon_att_view {
     struct animap **v;
 };
 
+#define DS_DEFAULT  0
+#define DS_FALSE    1
+#define DS_TRUE     2
+
 struct obj_arch {
     
     char *luaname;
@@ -332,7 +336,7 @@ struct obj_arch {
     
     unsigned int def_charge; 
     
-    unsigned char UNUSED_C_1;
+    unsigned char dynamic_shade;
     unsigned char UNUSED_C_2;
     unsigned char grouptype;
     unsigned char ytweak;
@@ -355,6 +359,7 @@ struct wallset {
     struct animap *wpatch[MAXWALLPATCH];
     struct animap *sidepatch;
     struct animap *window;
+    struct animap *window_glow;
     
     struct animap *xwall[MAX_XWALLBMP];
     
@@ -474,9 +479,8 @@ struct inst {
     
     //make this an int to avoid stupid issues with > 255 charges
     int charge;
-    
-    // not used, formerly a wonky way of managing animation
-    unsigned char UNUSED_fd;
+
+    unsigned char moves_this_frame;
     // not used, formerly charge
     unsigned char Unused_char;
     // internal variable
@@ -750,4 +754,7 @@ void DSB_aa_scale_blit(int doit, BITMAP *source, BITMAP *dest,
 struct animap *setup_animation(int, struct animap *lbmp, struct animap *bmp_table[256], int num_frames, int framedelay);
 void inventory_clickzone(int z, int who_look, int subrend);
 void process_queued_after_from(unsigned int inst);
+
+void increment_moves_this_frame(struct inst *p_obj_inst);
+void reset_moves_this_frame(struct inst *p_obj_inst);
 

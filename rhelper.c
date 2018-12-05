@@ -222,12 +222,12 @@ void setup_rei_name_entry_cz(void) {
     make_cz(ZONE_REI, gd.vxo+gii.srx+192, gd.vyo + gd.vyo_off + gii.sry + 122, 41, 21, 0);
 }
 
-void getgiidimensions(struct iidesc *ii, int *w, int *h) {
+void getgiidimensions(struct iidesc *ii, int *w, int *h, int defaultw, int defaulth) {
     struct animap *ii_img;
 
     if (ii->img == NULL) {
-        *w = 32;
-        *h = 32;
+        *w = defaultw;
+        *h = defaulth;
         return;
     }
     
@@ -254,12 +254,12 @@ void setup_misc_inv(BITMAP *scx, int bx, int by, int pt) {
     
     if (gii.sleep.img)
         draw_gfxicon(scx, gii.sleep.img, bx+gii.sleep.x, by+gii.sleep.y, 0, 0);
-    getgiidimensions(&(gii.sleep), &w, &h);
+    getgiidimensions(&(gii.sleep), &w, &h, 32, 32);
     make_cz(ZONE_ZZZ, bx+gii.sleep.x, by+gii.sleep.y, w, h, 0);
     
     if (gii.save.img)
         draw_gfxicon(scx, gii.save.img, bx+gii.save.x, by+gii.save.y, 0, 0);
-    getgiidimensions(&(gii.save), &w, &h);
+    getgiidimensions(&(gii.save), &w, &h, 32, 32);
     make_cz(ZONE_DISK, bx+gii.save.x, by+gii.save.y, w, h, 0);
     
     if (!gd.infobox && (!gfxctl.subrend || gd.mouse_mode == MM_MOUTHLOOK)) {
@@ -395,10 +395,10 @@ BITMAP *make_guy_icon(int id) {
     s_icon = create_bitmap_ex(32, uguy->w, uguy->h);
     
     if (pl_bitmap) {
-        int w38 = pl_bitmap->w - 10;
+        int w38 = gfxctl.guy_w; //pl_bitmap->w - 10;
         int x;
         for (x=0;x<4;++x) {
-            blit(pl_bitmap, s_icon, 10, 22, x*w38, 0, w38, s_icon->h);
+            blit(pl_bitmap, s_icon, pl_bitmap->w - w38, pl_bitmap->h - gfxctl.guy_h, x*w38, 0, w38, s_icon->h);
         }
     } else {
         clear_to_color(s_icon, bgc);
@@ -433,8 +433,8 @@ void draw_guy_icons(BITMAP *scx, int px, int py, int force_draw) {
                     xl = px;
                     yl = py;
                 } else {
-                    xl = px+40*xp;
-                    yl = py+30*yp;
+                    xl = px + gfxctl.guy_spc_w*xp;
+                    yl = py + gfxctl.guy_spc_h*yp;
                 } 
                 
                 --ip;    
@@ -445,11 +445,11 @@ void draw_guy_icons(BITMAP *scx, int px, int py, int force_draw) {
                 idir = gd.g_facing[ip];
                 if (a_overlay) {
                     BITMAP *b_overlay = animap_subframe(a_overlay, 0);
-                    BITMAP *ybmp = create_sub_bitmap(my_icon, idir*38, 0, 38, 28);
+                    BITMAP *ybmp = create_sub_bitmap(my_icon, idir*gfxctl.guy_w, 0, gfxctl.guy_w, gfxctl.guy_h);
                     set_alpha_blender();
                     draw_trans_sprite(scx, ybmp, xl, yl);
                     destroy_bitmap(ybmp);
-                    ybmp = create_sub_bitmap(b_overlay, idir*38, 0, 38, 28);
+                    ybmp = create_sub_bitmap(b_overlay, idir*gfxctl.guy_w, 0, gfxctl.guy_w, gfxctl.guy_h);
                     set_alpha_blender();
                     draw_trans_sprite(scx, ybmp, xl, yl);
                     destroy_bitmap(ybmp);                 
@@ -457,12 +457,12 @@ void draw_guy_icons(BITMAP *scx, int px, int py, int force_draw) {
                     if (!force_draw && (gd.gameplay_flags & GP_PARTYINVIS)) {
                         BITMAP *sbmp;
                         
-                        sbmp = create_sub_bitmap(my_icon, idir*38, 0, 38, 28);
+                        sbmp = create_sub_bitmap(my_icon, idir*gfxctl.guy_w, 0, gfxctl.guy_w, gfxctl.guy_h);
                         set_trans_blender(0, 0, 0, 255);
                         draw_lit_sprite(scx, sbmp, xl, yl, 127);
                         destroy_bitmap(sbmp);
                     } else {
-                        masked_blit(my_icon, scx, idir*38, 0, xl, yl, 38, 28);
+                        masked_blit(my_icon, scx, idir*gfxctl.guy_w, 0, xl, yl, gfxctl.guy_w, gfxctl.guy_h);
                     }
                 }
                 
@@ -974,7 +974,7 @@ int draw_interface(int softmode, int interface_vs, int really) {
     
     render_console(scx);
     
-    draw_guy_icons(scx, gfxctl.guy_x + 2, gfxctl.guy_y, 0);
+    draw_guy_icons(scx, gfxctl.guy_x + gfxctl.guy_off_x, gfxctl.guy_y + gfxctl.guy_off_y, 0);
 
     if (debug) {
         release_bitmap(scx);
@@ -987,7 +987,7 @@ int draw_interface(int softmode, int interface_vs, int really) {
     }
     
     if (gd.mouse_guy) {
-        draw_guy_icons(scx, mouse_x-18, mouse_y-14, gd.mouse_guy);         
+        draw_guy_icons(scx, mouse_x - (gfxctl.guy_w / 2), mouse_y - (gfxctl.guy_h / 2), gd.mouse_guy);         
         release_bitmap(scx);
         RETURN(rv);     
     }
@@ -1226,7 +1226,13 @@ void do_gui_options(int softmode) {
     
     scx = find_rendtarg(softmode);
     
-    setup_background(scx, 1);
+    // the gui is forced into softmode so we can draw the background without checking
+    // (make sure that's the case)
+    if (UNLIKELY(softmode == 0)) {
+        poop_out("Invalid screen mode for GUI");
+        return;
+    }
+    setup_background(scx, 0);
     
     bx = gd.vxo;
     by = gd.vyo + gd.vyo_off;
@@ -1620,7 +1626,9 @@ void activate_gui_zone(char *dstr, int zid, int x, int y, int w, int h, int flag
     VOIDRETURN();
 }
 
-void internal_gui_command(const char cmd, int val) {
+void internal_gui_command(const char *cmdstr, int val) {
+    char cmd = cmdstr[0];
+    
     onstack("internal_gui_command");
     
     if (cmd == 'c') {
@@ -1653,6 +1661,30 @@ void internal_shadeinfo(unsigned int arch, int otype, int odir, int d1, int d2, 
         p_arch->shade->d[odir-1][1] = d2;
         p_arch->shade->d[odir-1][2] = d3;
     }
+    
+    VOIDRETURN();    
+}
+
+// called via Lua to import the door_draw_info table
+void internal_doorinfo(unsigned int view, unsigned int idx, int parm) {
+    onstack("internal_doorinfo");
+    
+    gfxctl.doorinfo[idx][view] = parm;
+    
+    VOIDRETURN();
+}
+
+void internal_guyiconinfo(unsigned int w, unsigned int h, unsigned int spcx, unsigned int spcy, int off_x, int off_y) {
+    onstack("internal_guyiconinfo");
+    
+    gfxctl.guy_w = w;
+    gfxctl.guy_h = h;
+    
+    gfxctl.guy_spc_w = w + spcx;
+    gfxctl.guy_spc_h = h + spcy;
+    
+    gfxctl.guy_off_x = off_x;
+    gfxctl.guy_off_y = off_y;
     
     VOIDRETURN();    
 }

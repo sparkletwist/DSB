@@ -14,6 +14,7 @@
 #include "console.h"
 #include "uproto.h"
 #include "gproto.h"
+#include "lproto.h"
 #include "monster.h"
 #include "sound_fmod.h"
 #include "timer_events.h"
@@ -653,6 +654,7 @@ void write_current_music_info(PACKFILE *pf) {
 }
 
 void read_current_music_info(PACKFILE *pf) {
+    const char *music_long_filename = NULL;
     unsigned int mbits = 0;
     
     onstack("read_current_music_info");
@@ -671,7 +673,12 @@ void read_current_music_info(PACKFILE *pf) {
                 rdl(gd.cur_mus[i].chan);
                 gd.cur_mus[i].uid = retrstring(pf);
                 music_filename = retrstring(pf);
-                music_ptr = do_load_music(music_filename, checkid, 0);
+                
+                if (gd.sndpathtable) {
+                    music_long_filename = sndlongname_from_sndtable(music_filename);
+                }
+                
+                music_ptr = do_load_music(music_filename, music_long_filename, checkid, 0);
                 gd.cur_mus[i].filename = music_filename;
                 gd.cur_mus[i].preserve = 1; // because it's frozen!
         

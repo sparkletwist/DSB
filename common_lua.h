@@ -11,6 +11,8 @@ enum {
     _DSB_ACTIVATE_GUI,
     _DSB_SET_INTERNAL_GUI,
     _DSB_SET_INTERNAL_SHADEINFO,
+    _DSB_SET_INTERNAL_DOORINFO,
+    _DSB_SET_INTERNAL_GUYICONINFO,
     DSB_VALID_INST,
     DSB_GAME_END,
     DSB_INCLUDE_FILE,
@@ -252,6 +254,8 @@ int il_trt_obj_writeback(lua_State *LUA);
 int il_activate_gui_zone(lua_State *LUA);
 int il_set_internal_gui(lua_State *LUA);
 int il_set_internal_shadeinfo(lua_State *LUA);
+int il_set_internal_doorinfo(lua_State *LUA);
+int il_set_internal_guyiconinfo(lua_State *LUA);
 
 int expl_import_arch(lua_State *LUA);
 int expl_add_champion(lua_State *LUA);

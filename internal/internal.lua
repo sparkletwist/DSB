@@ -162,6 +162,16 @@ function __gui_importation()
 				if (zid == res_zones.console) then
 				    local conlines = __force_sane(gui_info[i].lines, 4, 1, 16)
 					__set_internal_gui("console", conlines)
+				
+				elseif (zid == res_zones.guy_icons) then
+					local icon_width = __force_sane(gui_info[i].icon_width, 38, 1, 640)
+					local icon_height = __force_sane(gui_info[i].icon_height, 28, 1, 480)
+					local icon_spacing_x = __force_sane(gui_info[i].icon_spacing_x, 2, 0, 100)
+					local icon_spacing_y = __force_sane(gui_info[i].icon_spacing_y, 2, 0, 100)
+					local draw_offset_x = __force_sane(gui_info[i].draw_offset_x, 2, 0, 100)
+					local draw_offset_y = __force_sane(gui_info[i].draw_offset_y, 0, 0, 100)
+					
+					__set_internal_guyiconinfo(icon_width, icon_height, icon_spacing_x, icon_spacing_y, draw_offset_x, draw_offset_y)
 				end
 					
 			end
@@ -221,6 +231,23 @@ function __import_arch_shading_info(arch_id)
 					vtable[3] = ssdinfo[3]
 				end
 				__set_internal_shadeinfo(1, d, vtable[1], vtable[2], vtable[3], arch_id)
+			end
+		end
+	end
+end
+
+function __import_door_draw_info()
+	local sname = { "view_near", "view_med", "view_far" }
+	local dname = { "x_off", "y_off", "x_off_side", "bottom_cut", "xscale", "yscale" }
+	
+	if (not door_draw_info) then return end
+	
+	for s=1,3 do
+		for d=1,6 do
+			if (door_draw_info[sname[s]]) then
+				local parm = door_draw_info[sname[s]][dname[d]]
+				if (parm == nil) then parm = 0 end
+				__set_internal_doorinfo(s, d, parm)
 			end
 		end
 	end
@@ -1932,6 +1959,31 @@ function ___inside_iterator(tstate, n)
 	return tstate.tab[nkey]
 end
 
+function __push_message_stack(mtbl)
+	if (not MESSAGE_STACK_TOP) then MESSAGE_STACK_TOP = 0 end
+	if (not MESSAGE_STACK) then MESSAGE_STACK = { } end
+	MESSAGE_STACK_TOP = MESSAGE_STACK_TOP + 1
+	MESSAGE_STACK[MESSAGE_STACK_TOP] = mtbl
+end
+
+function __pop_message_stack()
+	local poppedtbl = MESSAGE_STACK[MESSAGE_STACK_TOP]
+	MESSAGE_STACK[MESSAGE_STACK_TOP] = nil
+	MESSAGE_STACK_TOP = MESSAGE_STACK_TOP - 1
+	return poppedtbl
+end
+
+function dsb_check_message_stack(num)
+	if (not MESSAGE_STACK) then return nil end
+
+	if (num == nil) then
+		num = MESSAGE_STACK_TOP
+		if (num == nil or num == 0) then return nil end
+	end
+	if (not MESSAGE_STACK[num]) then return nil end
+	return MESSAGE_STACK[num]
+end
+
 function __handle_arch_messages(arch, tablestring, id, msgtype, data, sender)
 	if (arch[tablestring]) then
 		if (type(arch[tablestring]) == "function") then
@@ -1957,6 +2009,8 @@ end
 function __main_msg_processor(id, id_luaname, msgtype, data, sender)
 	local arch = obj[id_luaname]
 
+	__push_message_stack({id = id, archname = id_luaname, msgtype = msgtype, data = data, sender = sender}) 
+	
 	local mh = __handle_arch_messages(arch, "msg_handler", id, msgtype, data, sender)
 	local mhx = __handle_arch_messages(arch, "msg_handler_ext", id, msgtype, data, sender)
 	
@@ -1975,6 +2029,7 @@ function __main_msg_processor(id, id_luaname, msgtype, data, sender)
 		end
 	end
 	
+	__pop_message_stack() 
 end
 
 function dsb_in_obj(id)

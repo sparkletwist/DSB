@@ -1685,25 +1685,13 @@ int draw_door(int softmode, struct inst *p_inst, struct obj_arch *p_arch,
         
         if (amap->flags & AM_DYNGEN)
             tweak_tweaks(sm, &xtweak, &ytweak);
-        
-        // hand tweak
-        if (sm == 0) {
-            ytweak += -6;
-                
-        } else if (sm == 1) {
-            ytweak += -4;
-            
-            if (tflags & SIDE_VIEW) {
-                //xtweak = (sub_b->w/2);
-                xtweak += 64;
-            }
-            
+         
+        // hand tweaks offloaded to config file   
+        ytweak += gfxctl.doorinfo[DOOR_Y_OFF][sm];
+        if (tflags & SIDE_VIEW) {
+            xtweak += gfxctl.doorinfo[DOOR_X_OFF_SIDE][sm];
         } else {
-            ytweak += 1;
-            
-            if (tflags & SIDE_VIEW)
-                //xtweak = (sub_b->w * 31)/30;
-                xtweak += 99;
+            xtweak += gfxctl.doorinfo[DOOR_X_OFF][sm];
         }
         
         if ((tflags & SIDE_VIEW) && (tflags & SUBWIDTH))
@@ -1755,11 +1743,14 @@ int draw_door(int softmode, struct inst *p_inst, struct obj_arch *p_arch,
                 }
             }
             
+            /*
             if (!sm)
                 height_shift = 4;
-            else if (sm == 1)
+            else if (sm == 1 || sm == 2)
                 height_shift = 2;
-                     
+            */
+            height_shift = gfxctl.doorinfo[DOOR_BOTTOM_CUT][sm];
+                    
             if (crop && (p_arch->dtype == DTYPE_LEFTRIGHT))  {  
                 int xm = height_shift;
                               
@@ -1978,8 +1969,10 @@ int draw_single_floorthing(struct inst_loc *dt_il,
                 mfactor = 16;
         }
         
-        // don't dynamically shade pregenerated objects
-        if (!(amap->flags & AM_DYNGEN))
+        // don't dynamically shade pregenerated objects (unless specified)
+        if (p_obj_arch->dynamic_shade == DS_DEFAULT && !(amap->flags & AM_DYNGEN))
+            cf = 0;
+        else if (p_obj_arch->dynamic_shade == DS_FALSE)
             cf = 0;
             
         if (mfactor < 64) {  
@@ -2345,6 +2338,7 @@ int draw_wallstuff(int softmode, BITMAP *scx, struct dtile *dt,
     int sm_rv = 0;
     int glow = 0;
     int one_wallitem = !!(gd.gameplay_flags & GP_ONE_WALLITEM);
+    int multidraw = 0;
     int drawn = 0;
     
     dt_il = dt->il[face];
@@ -2370,6 +2364,8 @@ int draw_wallstuff(int softmode, BITMAP *scx, struct dtile *dt,
         }
         
         glow = !!(p_obj_arch->rhack & RHACK_NOSHADE);
+        
+        multidraw = !!(p_obj_arch->arch_flags & ARFLAG_MULTIDRAW);
                   
         // put pickableuppable things in alcoves
         if (p_obj_arch->type == OBJTYPE_THING) {       
@@ -2388,7 +2384,7 @@ int draw_wallstuff(int softmode, BITMAP *scx, struct dtile *dt,
         }
         
         // don't draw if we're limited and there are more down the line
-        if (one_wallitem) {
+        if (one_wallitem && !multidraw) {
             int another_later = 0;
             struct inst_loc *c_dt_il = dt_il->n;
             while (c_dt_il != NULL) {
@@ -2480,9 +2476,9 @@ int draw_wallstuff(int softmode, BITMAP *scx, struct dtile *dt,
 
             }
                                                 
-            if (!(amap->flags & AM_DYNGEN))
+            if (p_obj_arch->dynamic_shade == DS_FALSE || (p_obj_arch->dynamic_shade == DS_DEFAULT && !(amap->flags & AM_DYNGEN))) {
                 tf = 0;
-            else {
+            } else {
                 tf = act_tint_intensity;
                 
                 if (p_obj_arch->shade)
@@ -3229,6 +3225,10 @@ int render_dungeon_view(int softmode, int need_cz) {
         px = gd.p_x[gd.a_party];
         py = gd.p_y[gd.a_party];
         fdir = gd.p_face[gd.a_party];
+        
+        if ((gd.ini_options & INIOPT_LEADERVISION) && gd.leader != -1) {
+            fdir = (fdir + gd.g_facing[gd.leader]) % 4;
+        }
     }
     
     // global variable hacks
@@ -3972,7 +3972,25 @@ int render_dungeon_view(int softmode, int need_cz) {
             
             masked_blit(wt, scx, 0, 0, bx+64, by+18, wt->w, wt->h);
             
-            destroy_bitmap(wt);          
+            destroy_bitmap(wt); 
+            
+            if (cwsa->window_glow) {
+                struct animap *wg = cwsa->window_glow;
+                int hwinw, hwinh;
+                
+                hwinw = wg->w;
+                if (wg->numframes > 1) {
+                    hwinh = wg->c_b[0]->h;
+                } else {
+                    hwinh = wg->b->h;
+                }
+                
+                hwinw /= 2;
+                hwinh /= 2;
+                
+                draw_gfxicon(scx, wg, bx + wg->xoff + (VIEWPORTW/2) - hwinw, by + wg->yoff + (VIEWPORTH/2) - hwinh, 0, NULL);   
+                OUTSOFTMODE();
+            }         
         
         } else {
             if (cwsa->type == WST_LR_SEP) {
@@ -4218,8 +4236,13 @@ void draw_clickzones(int softmode) {
     
     while(i<NUM_ZONES) {
         int cid = makecol(0, 255, 0);
-        if (cid >= 19 && cid <= 38)
-            cid = makecol(255, 255, 255);
+        
+        if (i >= 19 && i < 38) {
+            cid = makecol(255, 255, 0);
+        } else if (i == 11) {
+            cid = makecol(255, 127, 0);
+        }
+        
         if (cz[i].w) {
             rect(scx, cz[i].x, cz[i].y, 
                 cz[i].x+cz[i].w, cz[i].y+cz[i].h, cid);
@@ -4255,6 +4278,7 @@ int render_inventory_view(int softmode, int pt) {
     int norend = 0;
     int bgc = makecol(182, 182, 182);
     int lbgc;
+    int exw, exh;
     
     onstack("render_inventory_view");
     
@@ -4407,7 +4431,11 @@ int render_inventory_view(int softmode, int pt) {
     release_bitmap(scx);
     
     make_cz(ZONE_EYE, bx+gii.eye.x, by+gii.eye.y, 35, 35, 0);
-    make_cz(ZONE_EXITBOX, bx+gii.exit.x, by+gii.exit.y, 17, 17, 0);
+    
+    if (gii.exit.img)
+        draw_gfxicon(scx, gii.exit.img, bx+gii.exit.x, by+gii.exit.y, 0, 0);
+    getgiidimensions(&(gii.exit), &exw, &exh, 17, 17);
+    make_cz(ZONE_EXITBOX, bx+gii.exit.x, by+gii.exit.y, exw, exh, 0);
       
     if (*gd.gl_viewstate == VIEWSTATE_CHAMPION) {
         if (gd.gui_mode == GUI_NAME_ENTRY) {

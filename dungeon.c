@@ -34,6 +34,10 @@ void import_shading_info(void) {
     lc_parm_int("__import_shading_info", 0);
 }
 
+void import_door_draw_info(void) {
+    lc_parm_int("__import_door_draw_info", 0);
+}
+
 void party_enter_level(int ap, int lev) {
     onstack("party_enter_level");
     
@@ -54,6 +58,7 @@ void party_viewto_level(int lev) {
 
     lc_parm_int("sys_viewto_level", 1, lev);
     import_shading_info();
+    import_door_draw_info();
 
     VOIDRETURN();
 }

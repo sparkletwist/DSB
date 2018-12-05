@@ -65,9 +65,10 @@ enum {
 #define GP_MAX_STAT_BONUS 0x1000
 #define GP_GLOWING_CYAN 0x01000000
 
-#define INIOPT_CUDAM    0x01
-#define INIOPT_SEMA     0x02
-#define INIOPT_STMOUSE  0x04
+#define INIOPT_CUDAM            0x0001
+#define INIOPT_SEMA             0x0002
+#define INIOPT_STMOUSE          0x0004
+#define INIOPT_LEADERVISION     0x0008
 
 #define ENFLAG_SPAWNBURST   0x0001
 #define __DEPRECATED_ENFLAG_QUEUEOBJAFF  0x1000
@@ -163,6 +164,16 @@ enum {
     TICK_FORCED
 };
 
+enum {
+    DOOR_X_OFF,
+    DOOR_Y_OFF,
+    DOOR_X_OFF_SIDE,
+    DOOR_BOTTOM_CUT,
+    DOOR_XSCALE,
+    DOOR_YSCALE,
+    MAX_DOORINFO    
+};
+
 struct graphics_control {
     unsigned char do_subrend;
     unsigned char UNUSED_subrend_bkg; // draw background as a subrenderer, maybe?
@@ -195,6 +206,13 @@ struct graphics_control {
     unsigned short guy_x;
     unsigned short guy_y;
     
+    unsigned short guy_w;
+    unsigned short guy_h;
+    unsigned short guy_spc_w;
+    unsigned short guy_spc_h;
+    short guy_off_x;
+    short guy_off_y;
+    
     sys_rend SR[NUM_SR];
     sys_rend ppos_r[4];
         
@@ -211,6 +229,8 @@ struct graphics_control {
     struct animap *background_image;
     
     unsigned int shade[MAX_SHOTYPES][MAX_SHDIRS][3];
+    
+    int doorinfo[MAX_DOORINFO][3];
 };
 
 struct arch_shadectl {
@@ -289,8 +309,8 @@ struct global_data {
     unsigned short engine_flags;
     
     unsigned short soundfade;
-    unsigned char __NOT_USED_1;
-    unsigned char __NOT_USED_2;
+    unsigned char gfxpathtable;
+    unsigned char sndpathtable;
     
     int tickclock;
     
@@ -493,11 +513,13 @@ struct global_data {
     
     int force_id;
     
-    struct obj_aff *queued_obj_aff;    
+    struct obj_aff *queued_obj_aff; 
+    struct obj_aff *queued_obj_aff_end;    
     int queue_rc;
     int always_queue_inst;
 
-    struct obj_aff *queued_inv_obj_aff;    
+    struct obj_aff *queued_inv_obj_aff;
+    struct obj_aff *queued_inv_obj_aff_end;     
     int queue_inv_rc;
     
     int offering_ppos;
@@ -542,7 +564,7 @@ struct global_data {
 #define DSB_LUA_SOUND 64
 
 #define MAJOR_VERSION 0
-#define MINOR_VERSION 69
+#define MINOR_VERSION 70
 //#define SUB_VERSION 'C'
 
 enum {

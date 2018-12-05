@@ -13,6 +13,7 @@
 #define M_OUTPUT(Z) textout_ex(scx, font, Z, bxc, byc, color, bg);
 
 extern struct global_data gd;
+extern struct graphics_control gfxctl;
 extern struct wallset **ws_tbl;
 
 int (*dsbgetpixel)(BITMAP *, int, int);
@@ -811,6 +812,13 @@ struct animap *scaledoor(struct animap *base_map, int sm) {
     r_map->ad = NULL;
     r_map->lod = NULL;
     
+    xm = gfxctl.doorinfo[DOOR_XSCALE][sm];
+    xd = 240;
+    
+    ym = gfxctl.doorinfo[DOOR_YSCALE][sm];
+    yd = 240;
+    
+    /*
     if (sm == 1) {
         xm = 2;
         xd = 3;
@@ -819,7 +827,11 @@ struct animap *scaledoor(struct animap *base_map, int sm) {
     } else {
         xm = ym = 1;
         xd = yd = 2;
+        
+        //ym = 96;
+        //yd = 200;
     }
+    */
     
     if (sm == 2 || sm == 5) {
         xcmp = base_map->far_x_compress;

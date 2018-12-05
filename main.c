@@ -253,6 +253,10 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     if (tvar)
         gd.ini_options |= INIOPT_CUDAM;
         
+    tvar = get_config_int("Settings", "LeaderVision", 0);
+    if (tvar)
+        gd.ini_options |= INIOPT_LEADERVISION;
+        
     tvar = get_config_int("Settings", "SemaphoreTiming", 1);
     if (tvar)
         gd.ini_options |= INIOPT_SEMA;
@@ -445,6 +449,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     import_interface_constants();
     init_interface_click();
     import_shading_info();
+    import_door_draw_info();
     
     // turn off compilation
     gd.compile = 0;

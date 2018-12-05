@@ -61,10 +61,16 @@ void destroy_all_music_handles(void) { return; }
 void activate_gui_zone(char *d, int z, int x, int y, int w, int h, int flags) {
     return;
 }
-void internal_gui_command(const char cmd, int val) {
+void internal_gui_command(const char *cmdstr, int val) {
     return;
 }
 void internal_shadeinfo(unsigned int r1, int p1, int p2, int p3, int p4, int p5) {
+    return;
+}
+void internal_doorinfo(unsigned int view, unsigned int idx, int parm) {
+    return;
+}
+void internal_guyiconinfo(unsigned int w, unsigned int h, unsigned int spcx, unsigned int spcy, int off_x, int off_y) {
     return;
 }
 void purge_from_lod(int mode, struct animap *lani) {
@@ -77,6 +83,10 @@ void drop_flying_inst(void *p, void *px) {
     return;
 }
 void flush_all_ist(void) {
+    return;
+}
+
+void increment_moves_this_frame(struct inst *p) {
     return;
 }
 

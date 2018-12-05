@@ -1215,9 +1215,15 @@ void objinst_click(int z, int abs_x, int abs_y) {
                 gd.queue_rc++;
             }
             
+            if (debug) {
+                char ptextmsg[200];
+                sprintf(ptextmsg, "CLICKZONE %d INST %d", z, cz11);
+                console_system_message(ptextmsg, makecol(255,255,0));
+            }
+            
             on_click_func(cz11, putdown, rx, ry);
                      
-            if (one_item) {
+            if (one_item && p_arch->type != OBJTYPE_UPRIGHT) {
                 struct inst *p_inst = oinst[cz11];
                 struct inst_loc *c_dt_il = dun[p_inst->level].t[p_inst->y][p_inst->x].il[p_inst->tile];
                 
@@ -1289,7 +1295,7 @@ void objinst_click(int z, int abs_x, int abs_y) {
             
             if (!take)
                 VOIDRETURN();
-                
+             
             // no putting fireballs in alcoves (?!)
             if (down_arch->arch_flags & ARFLAG_FLY_ONLY)
                 VOIDRETURN();
@@ -1680,11 +1686,11 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
     onstack("got_mouseclick");
     
     // clicking on the guys in the corner
-    if ((mouse_x > gfxctl.guy_x) && (mouse_x < gfxctl.guy_x + 80)
-        && (mouse_y > gfxctl.guy_y && mouse_y < gfxctl.guy_y + 60)) 
+    if ((mouse_x > gfxctl.guy_x) && (mouse_x < gfxctl.guy_x + (gfxctl.guy_spc_w * 2))
+        && (mouse_y > gfxctl.guy_y && mouse_y < gfxctl.guy_y + (gfxctl.guy_spc_h * 2))) 
     {
-        gzx = (mouse_x-gfxctl.guy_x)/40;
-        gzy = (mouse_y-gfxctl.guy_y)/30;
+        gzx = (mouse_x-gfxctl.guy_x)/gfxctl.guy_spc_w;
+        gzy = (mouse_y-gfxctl.guy_y)/gfxctl.guy_spc_h;
         
         if (gzx > 1) gzx = 1;
         if (gzy > 1) gzy = 1;
@@ -1701,7 +1707,7 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
             
             if (!mouse_obj) {
                 mouse_obj = -1;
-            }\
+            }
             
             lc_parm_int("sys_put_away_click", 1, mouse_obj); 
         }
@@ -1720,7 +1726,7 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
             if (i_actguy) {
                 --i_actguy;
                 
-                if (((mouse_x - gfxctl.guy_x)/20) % 2 == 0)
+                if (((mouse_x - gfxctl.guy_x)/(gfxctl.guy_spc_w / 2)) % 2 == 0)
                     dirmod = 2;
                     
                 gd.g_facing[i_actguy] += (1 + dirmod);

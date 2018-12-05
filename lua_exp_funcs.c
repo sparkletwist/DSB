@@ -291,6 +291,10 @@ int expl_get_bitmap(lua_State *LUA) {
     bmpname = luastring(LUA, -1 + b, funcnames[DSB_GET_BITMAP], 1);
     only_when_load_or_obj(LUA, funcnames[DSB_GET_BITMAP]);
     
+    if (!bmplongname && gd.gfxpathtable) {
+        bmplongname = bmplongname_from_gfxtable(bmpname);
+    }
+    
     if (gd.file_lod) {
         my_a_map = prepare_lod_animap(bmpname, bmplongname);
         /* DEBUG
@@ -361,6 +365,10 @@ int expl_get_mask_bitmap(lua_State *LUA) {
     }
     bmpname = luastring(LUA, -1 + b, funcnames[DSB_GET_MASK_BITMAP], 1);
     only_when_load_or_obj(LUA, funcnames[DSB_GET_MASK_BITMAP]);
+    
+    if (!bmplongname && gd.gfxpathtable) {
+        bmplongname = bmplongname_from_gfxtable(bmpname);
+    }
      
     lua_bitmap = pcxload8(bmpname, bmplongname, t_pal);
     gd.loaded_tga = 0;
@@ -388,6 +396,10 @@ int expl_get_sound(lua_State *LUA) {
     }  
     sndname = luastring(LUA, -1 + b, funcnames[DSB_GET_SOUND], 1);    
     only_when_load_or_obj(LUA, funcnames[DSB_GET_SOUND]);
+    
+    if (!sndlongname && gd.sndpathtable) {
+        sndlongname = sndlongname_from_sndtable(sndname);
+    }
 
     lua_sound = soundload(sndname, sndlongname, 1, 0, 1);
     setup_lua_sound(LUA, lua_sound, sndname);
@@ -399,6 +411,7 @@ int expl_music(lua_State *LUA) {
     int loop = 0;
     char unique_id[16];
     const char *musicname; 
+    const char *musiclongname = NULL;
     FMOD_SOUND *lua_music;
     int stop_music = 0;
     int b = 0;
@@ -439,7 +452,11 @@ int expl_music(lua_State *LUA) {
         RETURN(0);
     }
     
-    lua_music = do_load_music(musicname, unique_id, 1);
+    if (!musiclongname && gd.sndpathtable) {
+        musiclongname = sndlongname_from_sndtable(musicname);
+    }
+    
+    lua_music = do_load_music(musicname, musiclongname, unique_id, 1);
     if (lua_music) {
         sh = play_ssound(lua_music, unique_id, loop, 0);  
         gd.cur_mus[0].chan = sh;
@@ -1163,7 +1180,8 @@ int expl_make_wallset_ext(lua_State *LUA) {
     struct animap *inbmp[MAX_WALLBMP + MAX_XWALLBMP];
     struct animap *wpatchbmp[MAXWALLPATCH];
     struct animap *sidepatch = NULL;
-    struct animap *nwindow;
+    struct animap *nwindow = NULL;
+    struct animap *nwindow_glow = NULL;
     struct wallset *newset;
     int i;
     int no_patches = 0;
@@ -1183,7 +1201,23 @@ int expl_make_wallset_ext(lua_State *LUA) {
     only_when_loading(LUA, funcnames[DSB_MAKE_WALLSET_EXT]);
 
     // use and get rid of the extra parms
-    nwindow = luabitmap(LUA, -1, funcnames[DSB_MAKE_WALLSET_EXT], i_num_parms);
+    if (lua_istable(LUA, -1)) {
+        lua_pushinteger(LUA, 1);
+        lua_gettable(LUA, -2);
+        if (lua_istable(LUA, -1)) {
+            nwindow = luabitmap(LUA, -1, funcnames[DSB_MAKE_WALLSET_EXT], i_num_parms);
+            lua_pop(LUA, 1);
+            lua_pushinteger(LUA, 2);
+            lua_gettable(LUA, -2);
+            nwindow_glow = luabitmap(LUA, -1, funcnames[DSB_MAKE_WALLSET_EXT], i_num_parms);
+        }
+        lua_pop(LUA, 1);
+    } 
+    
+    if (nwindow == NULL) {
+        nwindow = luabitmap(LUA, -1, funcnames[DSB_MAKE_WALLSET_EXT], i_num_parms); 
+    }
+    
     if (no_patches) {
         lua_pop(LUA, 1);
     } else {
@@ -1231,6 +1265,11 @@ int expl_make_wallset_ext(lua_State *LUA) {
         newset->window->ext_references += 1;
     if (sidepatch)
         newset->sidepatch->ext_references += 1;
+        
+    if (nwindow_glow) {
+        newset->window_glow = nwindow_glow;
+        newset->window_glow->ext_references += 1;
+    }
 
     newset->type = WST_LR_SEP;
 
@@ -1599,6 +1638,7 @@ unsigned short get_condflags(int effect, int haveflags, const char *tstr) {
         if (!lua_isnumber(LUA, -1)) {
             gd.lua_nonfatal = 1;
             DSBLerror(LUA, "Invalid flags specified for condition");
+            lua_pop(LUA, 1);
             RETURN(eflags);
         }
         
@@ -1614,6 +1654,7 @@ unsigned short get_condflags(int effect, int haveflags, const char *tstr) {
 }
 
 int expl_add_condition(lua_State *LUA) {
+    char condglobal[200];
     struct animap *effectbmp;
     struct animap *charbmp;
     int call_interval;
@@ -1625,6 +1666,8 @@ int expl_add_condition(lua_State *LUA) {
     struct condition_desc *conds;
     
     INITVPARMCHECK(5, funcnames[DSB_ADD_CONDITION]);
+    
+    luastacksize(11);
         
     only_when_loading(LUA, funcnames[DSB_ADD_CONDITION]);
     
@@ -1636,7 +1679,7 @@ int expl_add_condition(lua_State *LUA) {
 
     effect = luaint(LUA, -5, funcnames[DSB_ADD_CONDITION], 1);
     effectbmp = luaoptbitmap(LUA, -4, funcnames[DSB_ADD_CONDITION]);
-    charbmp = luaoptbitmap(LUA, -3, funcnames[DSB_ADD_CONDITION]);
+    charbmp = luaoptbitmap(LUA, -3, funcnames[DSB_ADD_CONDITION]); 
     call_interval = luaint(LUA, -2, funcnames[DSB_ADD_CONDITION], 4);
 
     // store the called function
@@ -1654,6 +1697,9 @@ int expl_add_condition(lua_State *LUA) {
         }
             
         tempval = luaL_ref(LUA, LUA_REGISTRYINDEX);
+    } else {
+        // remove the nil parameter to sync up the stack size
+        lua_pop(LUA, 1);
     }
 
     if (effect == -1) { 
@@ -1677,12 +1723,29 @@ int expl_add_condition(lua_State *LUA) {
     // store Lua side
     conds[anum-1].lua_reg = tempval;
     
+    // pop the call interval 
+    lua_pop(LUA, 1);
+    
+    // store a reference to the bitmaps so the garbage collector won't eat them
+    struct animap *tbmp = luaoptbitmap(LUA, -1, funcnames[DSB_ADD_CONDITION]);
+    struct animap *tbmp2 = luaoptbitmap(LUA, -2, funcnames[DSB_ADD_CONDITION]);
+    if (tbmp != charbmp || tbmp2 != effectbmp) {
+        global_stack_dump_request();
+        program_puke("Condition bitmap stack error");
+    }
+        
+    sprintf(condglobal, "%s%d%x%s", "__CONDREF_", anum, conds, "CHAR");
+    lua_setglobal(LUA, condglobal);
+    sprintf(condglobal, "%s%d%x%s", "__CONDREF_", anum, conds, "FX");
+    lua_setglobal(LUA, condglobal);
+    
     lua_pushinteger(LUA, anum);
     
     RETURN(1);
 }
 
 int expl_replace_condition(lua_State *LUA) {
+    char condglobal[200];
     struct animap *effectbmp;
     struct animap *charbmp;
     int cid;
@@ -1750,6 +1813,9 @@ int expl_replace_condition(lua_State *LUA) {
         }
 
         tempval = luaL_ref(LUA, LUA_REGISTRYINDEX);
+    } else {
+        // remove the nil parameter to sync up the stack size
+        lua_pop(LUA, 1);
     }
 
     // clear old registry entry
@@ -1769,6 +1835,15 @@ int expl_replace_condition(lua_State *LUA) {
     
     // store Lua side
     conds[cid-1].lua_reg = tempval;
+    
+    // pop the call interval
+    lua_pop(LUA, 1);
+    
+    // update reference to the bitmaps so the garbage collector won't eat them
+    sprintf(condglobal, "%s%d%x%s", "__CONDREF_", cid, conds, "CHAR");
+    lua_setglobal(LUA, condglobal);
+    sprintf(condglobal, "%s%d%x%s", "__CONDREF_", cid, conds, "FX");
+    lua_setglobal(LUA, condglobal);
 
     RETURN(0);
 }
@@ -2841,18 +2916,22 @@ int expl_sound(lua_State *LUA) {
 }
 
 int expl_stopsound(lua_State *LUA) {
+    int stop_all_music = 0;
     int i;
     unsigned int shand;
     
     INITPARMCHECK(1, funcnames[DSB_STOPSOUND]);
     
     shand = luaint(LUA, -1, funcnames[DSB_STOPSOUND], 1);
-    if (shand < 0)
-        RETURN(0);
-        
-    stop_sound(shand);
+    if (shand < 0) {
+        stop_all_sound_channels();
+        stop_all_music = 1;
+    } else {
+        stop_sound(shand);
+    }
+    
     for(i=0;i<MUSIC_HANDLES;++i) {
-        if (gd.cur_mus[i].uid && (shand == gd.cur_mus[i].chan)) {
+        if (gd.cur_mus[i].uid && (stop_all_music || shand == gd.cur_mus[i].chan)) {
             gd.cur_mus[i].preserve = 0;
             current_music_ended(i);
         }
@@ -4894,6 +4973,8 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(il_activate_gui_zone);
     NEWL(il_set_internal_gui);
     NEWL(il_set_internal_shadeinfo);
+    NEWL(il_set_internal_doorinfo);
+    NEWL(il_set_internal_guyiconinfo);
     NEWL(expl_valid_inst);
     NEWL(expl_game_end);
     NEWL(expl_include_file);

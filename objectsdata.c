@@ -174,6 +174,33 @@ int integerlookup(const char *s_name, int default_value) {
     RETURN(r);
 }
 
+int dsboollookup(const char *s_name) {
+    int b = DS_DEFAULT;
+    
+    onstack("dsboollookup");
+    
+    luastacksize(4);
+    
+    lua_pushstring(LUA, s_name);
+    lua_gettable(LUA, -2);
+    
+    if (lua_isnil(LUA, -1)) {
+        lua_pop(LUA, 1);
+        RETURN(DS_DEFAULT);
+    } else if (lua_isboolean(LUA, -1)) {
+        int dsd = lua_toboolean(LUA, -1);
+        if (dsd) {
+            b = DS_TRUE;
+        } else {
+            b = DS_FALSE;
+        }
+    }
+    
+    lua_pop(LUA, 1);
+    
+    RETURN(b);   
+}
+
 int tablecheckpresence(const char *s_name) {
     int r;
     
@@ -1237,6 +1264,7 @@ void register_object(lua_State *LUA, int graphical) {
     if (typenum == OBJTYPE_WALLITEM) {
         apply_rhack(o_ptr, "wall_patch", RHACK_WALLPATCH);
         apply_archflag(o_ptr, "drop_zone", ARFLAG_DROP_ZONE);
+        apply_archflag(o_ptr, "multidraw", ARFLAG_MULTIDRAW);
         apply_archflag(o_ptr, "ignore_empty_clicks", ARFLAG_DZ_EXCHONLY);
         
         if (o_ptr->rhack & RHACK_WRITING) {
@@ -1391,12 +1419,31 @@ void register_object(lua_State *LUA, int graphical) {
     }
     
     if (typenum == OBJTYPE_WALLITEM) {
+        int ivn;
+        
         o_ptr->dview[0] = getluaoptbitmap(nameref, "front");
+        
+        // added in 0.70
+        o_ptr->dview[1] = getluaoptbitmap(nameref, "front_med");
+        o_ptr->dview[2] = getluaoptbitmap(nameref, "front_far");
+        
         o_ptr->sideview[0] = getluaoptbitmap(nameref, "side");
+        
+        // added in 0.70
+        o_ptr->sideview[1] = getluaoptbitmap(nameref, "side_med");
+        o_ptr->sideview[2] = getluaoptbitmap(nameref, "side_far");
+        
         o_ptr->outview[0] = getluaoptbitmap(nameref, "other_side");
         
-        if (o_ptr->outview[0] && !o_ptr->sideview[0])
-            DSBLerror(LUA, "%s: Cannot have other_side without side", nameref);
+        // added in 0.70
+        o_ptr->outview[1] = getluaoptbitmap(nameref, "other_side_med");
+        o_ptr->outview[2] = getluaoptbitmap(nameref, "other_side_far");
+        
+        for (ivn=0;ivn<3;ivn++) {
+            if (o_ptr->outview[ivn] && !o_ptr->sideview[ivn]) {
+                DSBLerror(LUA, "%s: Cannot have other_side without side", nameref);
+            }
+        }
 
         o_ptr->inview[0] = getluaoptbitmap(nameref, "near_side");
         o_ptr->inview[1] = getluaoptbitmap(nameref, "near_other_side");
@@ -1407,6 +1454,8 @@ void register_object(lua_State *LUA, int graphical) {
                 DSBLerror(LUA, "Mirror must have mirror_inside defined");
             }
         }
+        
+        o_ptr->dynamic_shade = dsboollookup("dynamic_shade");
     }
     
     if (typenum == OBJTYPE_FLOORITEM || typenum == OBJTYPE_UPRIGHT) {
@@ -1424,6 +1473,8 @@ void register_object(lua_State *LUA, int graphical) {
             o_ptr->outview[1] = getluaoptbitmap(nameref, "xside_med");
             o_ptr->outview[2] = getluaoptbitmap(nameref, "xside_far");
         }
+        
+        o_ptr->dynamic_shade = dsboollookup("dynamic_shade");
     }
     
     if (typenum == OBJTYPE_MONSTER) {

@@ -1,5 +1,6 @@
 #include <allegro.h>
 #include <winalleg.h>
+#include <stdio.h>
 #include "objects.h"
 #include "global_data.h"
 #include "uproto.h"
@@ -466,7 +467,8 @@ int DSBgameloop(int new_game) {
         party_enter_level(0, gd.p_lev[0]);
     else {
         lc_parm_int("sys_game_load", 0); 
-        import_shading_info();          
+        import_shading_info();  
+        import_door_draw_info();        
     }
         
     gd.mouse_hidden = HIDEMOUSEMODE_SHOW;
@@ -630,8 +632,8 @@ int DSBgameloop(int new_game) {
         
         // don't drag a guy too far out from the corner
         if (gd.mouse_guy && 
-            ((mouse_x < (gfxctl.guy_x)) || (mouse_x > gfxctl.guy_x + 80)) || 
-            ((mouse_y < gfxctl.guy_y) || (mouse_y > gfxctl.guy_y + 60)))
+            ((mouse_x < (gfxctl.guy_x)) || (mouse_x > gfxctl.guy_x + (gfxctl.guy_spc_w * 2))) || 
+            ((mouse_y < gfxctl.guy_y) || (mouse_y > gfxctl.guy_y + (gfxctl.guy_spc_h * 2))))
         {
             gd.mouse_guy = 0;
         }
@@ -716,9 +718,12 @@ int DSBgameloop(int new_game) {
         while (eot_te) {
             struct timer_event *c_eot_te = eot_te;
             eot_te = NULL;
+                      
             run_timers(c_eot_te, &c_eot_te, TE_FULLMODE);
             if (c_eot_te) {
-                program_puke("Leaky eot_te queue");
+                char ermsg[200];
+                sprintf(ermsg, "Leaky eot_te queue [Type %d Data %x %x]", c_eot_te->type, c_eot_te->data, c_eot_te->altdata);
+                program_puke(ermsg);
             }
         }
         

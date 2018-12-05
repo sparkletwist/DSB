@@ -195,6 +195,31 @@ void stop_sound(unsigned int cid) {
     VOIDRETURN();
 }
 
+void stop_all_sound_channels() {
+    FMOD_RESULT result;
+    int i, pchk;
+
+    onstack("stop_all_sound_channels");
+            
+    for(i=0;i<fchans.max;i++) {    
+        if (fchans.c[i].flags == CHAN_AVAIL)
+            continue;
+        
+        result = FMOD_Channel_IsPlaying(fchans.c[i].chan, &pchk);
+        fmod_errcheck(result);
+        if (pchk) {
+            result = FMOD_Channel_Stop(fchans.c[i].chan);
+            fmod_errcheck(result);
+        }
+        
+        fchans.c[i].chan = NULL;
+        fchans.c[i].sample = NULL;
+        fchans.c[i].flags = CHAN_AVAIL;
+    }
+
+    VOIDRETURN();    
+}
+
 void destroy_all_sound_handles(void) {
     struct frozen_chan *fz;
     int i;
@@ -872,7 +897,7 @@ void set_sound_vol(unsigned int shand, unsigned int vol) {
     VOIDRETURN();
 }
 
-FMOD_SOUND *do_load_music(const char *musicname, 
+FMOD_SOUND *do_load_music(const char *musicname, const char *musiclongname,
     char *unique_id, int force_loading) 
 {
     int quietfail;
@@ -902,7 +927,7 @@ FMOD_SOUND *do_load_music(const char *musicname,
     // I don't know what I'm doing here, anymore.
     quietfail = force_loading;
     
-    lua_music = soundload(musicname, NULL, 0, quietfail, 0);
+    lua_music = soundload(musicname, musiclongname, 0, quietfail, 0);
     tmp_id = hash_and_cache(LUA, lua_music, musicname);
     memcpy(unique_id, tmp_id, 16);
     

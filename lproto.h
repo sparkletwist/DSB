@@ -18,3 +18,6 @@ void reget_lua_font_handle(void);
 
 struct animap *grab_desktop(void);
 
+const char *bmplongname_from_gfxtable(const char *bmpname);
+const char *sndlongname_from_sndtable(const char *sndname);
+

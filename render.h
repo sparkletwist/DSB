@@ -20,3 +20,5 @@ void call_lua_damage_renderer(struct animap *rtarg, int cstate, int ppos, int lw
 int find_targeted_csr(struct animap *sbmp, int xx, int yy, struct clickzone ***p_lcz, int **p_lczn, int *p_cx, int *p_cy);
 int find_associated_csr_ppos(struct animap *sbmp, int csr, int csr_found);
 int find_valid_czn(struct clickzone *p_lcz, int lczn);
+
+void getgiidimensions(struct iidesc *ii, int *w, int *h, int defaultw, int defaulth);

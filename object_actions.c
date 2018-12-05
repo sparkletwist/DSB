@@ -32,7 +32,8 @@ extern FILE *errorlog;
 extern istack istaparty;
 extern int debug;
 
-struct obj_aff *oaq_end = NULL;
+// how did this ever work with a queued inventory?!
+//struct obj_aff *oaq_end = NULL;
 
 int calc_total_light(struct dungeon_level *dd) {
     int i_lightlevel = dd->lightlevel;
@@ -45,6 +46,7 @@ int calc_total_light(struct dungeon_level *dd) {
 }
 
 void i_instmd_queue(struct obj_aff **ov_tbl,
+    struct obj_aff **p_oaq_end,
     int op, int lev, int xx, int yy, int dir,
     int inst, int data)
 {
@@ -77,17 +79,17 @@ void i_instmd_queue(struct obj_aff **ov_tbl,
     }
     
     if (*ov_tbl) {
-        oaq_end->n = oa_n;
-        oaq_end = oa_n;
+        (*p_oaq_end)->n = oa_n;
+        *p_oaq_end = oa_n;
     } else
-        *ov_tbl = oaq_end = oa_n;
+        *ov_tbl = *p_oaq_end = oa_n;
 }
 
 void instmd_queue(int op, int lev, int xx, int yy, int dir,
     int inst, int data)
 {
     onstack("instmd_queue");
-    i_instmd_queue(&(gd.queued_obj_aff), op, lev,
+    i_instmd_queue(&(gd.queued_obj_aff), &(gd.queued_obj_aff_end), op, lev,
         xx, yy, dir, inst, data);
     VOIDRETURN();
 }
@@ -96,13 +98,15 @@ void inv_instmd_queue(int op, int lev, int xx, int yy, int dir,
     int inst, int data)
 {
     onstack("inv_instmd_queue");
-    i_instmd_queue(&(gd.queued_inv_obj_aff), op, lev,
-        xx, yy, dir, inst, data);
+    i_instmd_queue(&(gd.queued_inv_obj_aff), &(gd.queued_inv_obj_aff_end),
+        op, lev, xx, yy, dir, inst, data);
     VOIDRETURN();
 }
 
 
-void instmd_queue_flush_loop(struct obj_aff **p_oaq, int Queue_Max) {
+void instmd_queue_flush_loop(struct obj_aff **p_oaq, 
+    struct obj_aff **p_oaq_end, int Queue_Max)
+{
     int instant_launch = 0;
     int queueruns = 0;
     struct obj_aff *oaq = *p_oaq;
@@ -111,7 +115,7 @@ void instmd_queue_flush_loop(struct obj_aff **p_oaq, int Queue_Max) {
     
     // show an empty queue to any further functions
     // so they start their own queues instead of messing mine
-    oaq_end = NULL;
+    *p_oaq_end = NULL;
     *p_oaq = NULL;
     
     while(oaq != NULL) {
@@ -218,18 +222,20 @@ void queued_inst_destroy(unsigned int inst) {
     VOIDRETURN();
 }
 
-void i_flush_instmd_queue(int qmax, int *q_rc, struct obj_aff **q_obj_a) {
+void i_flush_instmd_queue(int qmax, int *q_rc, struct obj_aff **q_obj_a,
+    struct obj_aff **q_obj_a_end) 
+{
     int rep = 0;
     
     onstack("i_flush_instmd_queue");
 
     while (*q_obj_a) {
         *q_rc += 1;
-        instmd_queue_flush_loop(q_obj_a, qmax);
+        instmd_queue_flush_loop(q_obj_a, q_obj_a_end, qmax);
         *q_rc -= 1;
         ++rep;
 
-        if (rep >= 80) {
+        if (rep >= 800) {
             recover_error("Excessive trigger queue");
             *q_rc = 0;
             VOIDRETURN();
@@ -241,19 +247,19 @@ void i_flush_instmd_queue(int qmax, int *q_rc, struct obj_aff **q_obj_a) {
 
 void flush_instmd_queue_with_max(int qmax) {
     onstack("flush_instmd_queue_with_max");
-    i_flush_instmd_queue(qmax, &(gd.queue_rc), &(gd.queued_obj_aff));
+    i_flush_instmd_queue(qmax, &(gd.queue_rc), &(gd.queued_obj_aff), &(gd.queued_obj_aff_end));
     VOIDRETURN();
 }
 
 void flush_instmd_queue(void) {
     onstack("flush_instmd_queue");
-    i_flush_instmd_queue(1000, &(gd.queue_rc), &(gd.queued_obj_aff));
+    i_flush_instmd_queue(1000, &(gd.queue_rc), &(gd.queued_obj_aff), &(gd.queued_obj_aff_end));
     VOIDRETURN();
 }
 
 void flush_inv_instmd_queue(void) {
     onstack("flush_inv_instmd_queue");
-    i_flush_instmd_queue(1000, &(gd.queue_inv_rc), &(gd.queued_inv_obj_aff));
+    i_flush_instmd_queue(1000, &(gd.queue_inv_rc), &(gd.queued_inv_obj_aff), &(gd.queued_inv_obj_aff_end));
     VOIDRETURN();
 }
 
@@ -1057,6 +1063,7 @@ void launch_object(int inst, int lev, int x, int y,
         instmd_queue(INSTMD_INST_FLYER, ddelta, flydist, damagepower,
             travdir, inst, delta);
         instmd_queue(INSTMD_INST_MOVE, lev, x, y, tilepos, inst, 0);
+        increment_moves_this_frame(p_inst);
     } else {
         if (p_inst->level != LOC_LIMBO)
             limbo_instance(inst);
@@ -1214,6 +1221,14 @@ void set_fdelta_to_begin_now(struct inst *p_obj_inst) {
     p_obj_inst->frame = 0;
 }
 
+void increment_moves_this_frame(struct inst *p_obj_inst) {
+    p_obj_inst->moves_this_frame++;
+}
+
+void reset_moves_this_frame(struct inst *p_obj_inst) {
+    p_obj_inst->moves_this_frame = 0;
+}
+
 void adv_inst_and_cond_framecounters(void) {
     int z;
     int w;
@@ -1223,6 +1238,9 @@ void adv_inst_and_cond_framecounters(void) {
     for (z=0;z<NUM_INST;++z) {
         if (oinst[z]) {
             struct inst *p_inst = oinst[z];
+            
+            reset_moves_this_frame(p_inst);
+            
             if (!(p_inst->gfxflags & G_FREEZE)) {
                 p_inst->frame++;
                 if (p_inst->frame >= FRAMECOUNTER_MAX)

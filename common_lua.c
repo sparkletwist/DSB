@@ -75,6 +75,8 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "__activate_gui_zone",
     "__set_internal_gui",
     "__set_internal_shadeinfo",
+    "__set_internal_doorinfo",
+    "__set_internal_guyiconinfo",
     // "dsb_insts",
     // "dsb_in_obj",
     "dsb_valid_inst",
@@ -473,7 +475,7 @@ int il_set_internal_gui(lua_State *LUA) {
     bstr = luastring(LUA, -2, s_fn, 1);
     val = luaint(LUA, -1, s_fn, 2);
 
-    internal_gui_command(bstr[0], val);
+    internal_gui_command(bstr, val);
 
     RETURN(0);     
 }
@@ -501,6 +503,44 @@ int il_set_internal_shadeinfo(lua_State *LUA) {
     } 
     
     internal_shadeinfo(regarch, parm[0], parm[1], parm[2], parm[3], parm[4]);    
+    
+    RETURN(0);
+}
+
+int il_set_internal_doorinfo(lua_State *LUA) {
+    const char *s_fn = funcnames[_DSB_SET_INTERNAL_DOORINFO];
+    int parm[3];
+    int p;
+
+    INITPARMCHECK(3, s_fn); 
+        
+    for(p=0;p<3;++p) {
+        if (lua_isnumber(LUA, -3+p)) { 
+            parm[p] = lua_tointeger(LUA, -3+p);
+        } else
+            parm[p] = 0;    
+    } 
+    
+    internal_doorinfo(parm[0] - 1, parm[1] - 1, parm[2]);    
+    
+    RETURN(0);
+}
+
+int il_set_internal_guyiconinfo(lua_State *LUA) {
+    const char *s_fn = funcnames[_DSB_SET_INTERNAL_GUYICONINFO];
+    int parm[6];
+    int p;
+
+    INITPARMCHECK(6, s_fn); 
+        
+    for(p=0;p<6;++p) {
+        if (lua_isnumber(LUA, -6+p)) { 
+            parm[p] = lua_tointeger(LUA, -6+p);
+        } else
+            parm[p] = 0;    
+    } 
+    
+    internal_guyiconinfo(parm[0], parm[1], parm[2], parm[3], parm[4], parm[5]);   
     
     RETURN(0);
 }
@@ -1876,13 +1916,16 @@ int expl_move(lua_State *LUA) {
     if (gd.queue_rc && ((inst == gd.always_queue_inst) || (oldlev >= 0 || lev >= 0))) {
         if (notmoved)
             instmd_queue(INSTMD_RELOCATE, lev, 0, 0, dir, inst, 0);
-        else
+        else {
             instmd_queue(INSTMD_INST_MOVE, lev, xx, yy, dir, inst, 0);
-            
+            increment_moves_this_frame(p_inst);
+        }
+        
     } else if (gd.queue_inv_rc && 
         (p_inst->level == LOC_CHARACTER || lev == LOC_CHARACTER))
     {
         inv_instmd_queue(INSTMD_INST_MOVE, lev, xx, yy, dir, inst, 0);
+        increment_moves_this_frame(p_inst);
         
     } else {
         if (notmoved)

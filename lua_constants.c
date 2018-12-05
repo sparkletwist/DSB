@@ -3,6 +3,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <stdio.h>
 #include "lproto.h"
 #include "uproto.h"
 #include "objects.h"
@@ -317,4 +318,36 @@ void update_all_system(void) {
     import_core_strings();
     import_core_colors();
     flush_guy_icons();
+}
+
+const char *extend_from_table(const char *tblname, const char *bmpname) {
+    int valid_return = 0;
+    static char lstr[MAX_PATH];
+    
+    luastacksize(5);
+    lua_getglobal(LUA, tblname);
+    if (lua_istable(LUA, -1)) {
+        lua_pushstring(LUA, bmpname);
+        lua_gettable(LUA, -2);
+        if (lua_isstring(LUA, -1)) {
+            const char *rstr = lua_tostring(LUA, -1);
+            snprintf(lstr, sizeof(lstr), "%s", rstr);
+            valid_return = 1;
+        }
+        lua_pop(LUA, 1);    
+    }
+    lua_pop(LUA, 1);
+    
+    if (valid_return)
+        return lstr;
+    
+    return NULL;
+}
+
+const char *bmplongname_from_gfxtable(const char *bmpname) {
+    return extend_from_table("graphics_paths", bmpname);
+}
+
+const char *sndlongname_from_sndtable(const char *sndname) {
+    return extend_from_table("sound_paths", sndname);
 }

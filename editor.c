@@ -622,7 +622,7 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     edg.haccel = CreateAcceleratorTable(myAccel,
         sizeof(myAccel) / sizeof(ACCEL));
     
-    SetWindowText(edg.infobar, "ESB 0.9n (DSB 0.68) Ready");
+    SetWindowText(edg.infobar, "ESB 0.9p (DSB 0.70) Ready");
     ed_resizesubs(sys_hwnd);
     force_redraw(edg.subwin, 1);
     purge_dirty_list();
