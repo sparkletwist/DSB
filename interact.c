@@ -1207,8 +1207,14 @@ void objinst_click(int z, int abs_x, int abs_y) {
         
         if (!(p_arch->arch_flags & ARFLAG_DZ_EXCHONLY)) {
             // one-item mode means everything else on the wall gets a click too
-            int one_item = !!(gd.gameplay_flags & GP_ONE_WALLITEM);
-        
+            int one_item;
+            
+            // never treat clickable flooritems this way
+            if (p_arch->type == OBJTYPE_UPRIGHT)
+                one_item = 0;
+            else
+                one_item = !!(gd.gameplay_flags & GP_ONE_WALLITEM);
+            
             // queue up any destroyed opbys. it's a lot less messy this way...
             if (one_item) {
                 gd.always_queue_inst = putdown;
@@ -1223,7 +1229,7 @@ void objinst_click(int z, int abs_x, int abs_y) {
             
             on_click_func(cz11, putdown, rx, ry);
                      
-            if (one_item && p_arch->type != OBJTYPE_UPRIGHT) {
+            if (one_item) {
                 struct inst *p_inst = oinst[cz11];
                 struct inst_loc *c_dt_il = dun[p_inst->level].t[p_inst->y][p_inst->x].il[p_inst->tile];
                 
