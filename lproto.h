@@ -1,6 +1,7 @@
 void lua_register_funcs(lua_State *LUA);
 const char *luastring(lua_State *LUA, int stackarg, const char*, int);
 int luaint(lua_State *LUA, int stackarg, const char*, int);
+int luacondid(lua_State *LUA, int stackarg, const char*, int);
 unsigned int luargbval(lua_State *LUA, int stackarg,const char*, int);
 
 unsigned int luaobjarch(lua_State *LUA, int stackarg, const char*);

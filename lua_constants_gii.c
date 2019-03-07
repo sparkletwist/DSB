@@ -115,9 +115,15 @@ void update_all_inventory_info(void) {
         }
     }
     lua_pop(LUA, 1);
+    
+    lua_pushstring(LUA, "TOTAL_INV_SLOTS");
+    lua_pushinteger(LUA, max_invslots);
+    lua_settable(LUA, -3);
 
     gd.tmpstr = NULL;
     lua_pop(LUA, 1);
+    
+
 
     VOIDRETURN();
 }

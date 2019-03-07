@@ -454,6 +454,7 @@ int show_ending(int boring) {
     RETURN(255);
 }
 
+#ifdef REALDSB
 void show_introduction(void) {
     int local_updateok;
     FONT *font = ROOT_SYSTEM_FONT;
@@ -468,7 +469,7 @@ void show_introduction(void) {
     int gig = DSBtrivialrand()%32;
 
     onstack("show_introduction");
-    
+        
     systemtimer();
     while (ct<10) {
         int r = systemtimer();
@@ -586,3 +587,8 @@ void show_introduction(void) {
     
     VOIDRETURN();
 }
+#else
+void show_introduction(void) {
+    lc_parm_int("sys_game_intro", 0);
+}
+#endif

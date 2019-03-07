@@ -1,23 +1,5 @@
 /*
 
-- Added prestartup.lua to allow custom code to run before the majority of system scripts run
-- Added graphics_paths and sound_paths tables stored in graphics.cfg and sound.cfg to allow different paths for base graphics and sounds
-- Kept internal condition bitmaps from being accidentally trashed by the Lua garbage collector
-- Added support for a secondary image for wall windows that can be larger than the wall that contains them
-- Added ability to specify static images for wallitems at different ranges
-- Added dynamic_shade arch property to control whether floor/wallitems are dynamically shaded
-- Added door_draw_info table to give more control over how doors are drawn
-- Added extra properties to gui_info.guy_icons to control the size of the icons
-- Added multidraw arch property to circumvent DM-style wallitem drawing
-- Added LeaderVision ini option to rotate the view when the party leader rotates
-- Modified most functions that play sounds to optionally take a table of sounds and choose from it randomly
-- Passing a sound handle of -1 to dsb_stopsound will now stop all playing sounds
-- An icon specified for inventory_info.exitbox is now actually drawn
-- Changed clickable flooritems to never be restricted to one clickable item per tile
-- Moved the list of ammo storing locations out of local variables in attack methods
-- Added additional renderer hooks to make changes to graphics in custom dungeons easier
-- Fixed a bug in the throwtrolin importable archetype
-- Fixed some internal message queue stuff that should hopefully make tracking down future bugs easier
 
 */
 

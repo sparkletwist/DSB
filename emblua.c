@@ -428,6 +428,31 @@ int luaint(lua_State *LUA, int stackarg, const char *fname, int paramnum) {
     return rv;       
 }
 
+int luacondid(lua_State *LUA, int stackarg, const char *fname, int paramnum) {
+    int rv;
+    int needpop = 0;
+    
+    if (lua_istable(LUA, stackarg)) {
+        lua_pushstring(LUA, "INTERNAL_ID");
+        lua_gettable(LUA, stackarg - 1);
+        stackarg = -1;
+        needpop = 1;         
+    }
+    
+    if (!lua_isnumber(LUA, stackarg)) {
+        DSBLerror(LUA, "%s requires condition id in param %d", fname, paramnum);
+        rv = 0;
+    } else {
+        rv = lua_tointeger(LUA, stackarg);
+    }
+    
+    if (needpop) {
+        lua_pop(LUA, 1);  
+    }
+        
+    return rv;       
+}
+
 // this function does not remove the bitmap from the stack
 // make sure that the caller either does it or it is not
 // required to do so!

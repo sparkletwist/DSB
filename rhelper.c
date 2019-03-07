@@ -16,6 +16,8 @@
 #include "arch.h"
 #include "render.h"
 
+extern const char *STORED_ATTACK_INFO;
+
 extern int (*dsbgetpixel)(BITMAP *, int, int);
 extern void (*dsbputpixel)(BITMAP *, int, int, int);
 
@@ -241,6 +243,16 @@ void getgiidimensions(struct iidesc *ii, int *w, int *h, int defaultw, int defau
     return;
 }
 
+void init_subrend_targ(const char *name, struct animap **subrend_ptr) {
+    onstack("init_subrend_targ");
+    
+    gfxctl.subrend_targ_name = name;
+    gfxctl.subrend_targ = subrend_ptr;
+    gfxctl.subrend_targ_init = 1;
+    
+    VOIDRETURN();   
+}
+
 void setup_misc_inv(BITMAP *scx, int bx, int by, int pt) {
     int pcidx;
     struct champion *me;
@@ -270,7 +282,7 @@ void setup_misc_inv(BITMAP *scx, int bx, int by, int pt) {
             destroy_system_subrenderers();
         
         if (gfxctl.food_water == NULL) {
-            gfxctl.subrend_targ = &(gfxctl.food_water);
+            init_subrend_targ("food_water", &(gfxctl.food_water));
             lc_parm_int("sys_render_mainsub", 1, pcidx + 1);
             gfxctl.subrend_targ = NULL;
         }
@@ -308,7 +320,7 @@ void draw_inv_statsbox(BITMAP *scx, int px, int py, int pt) {
     destroy_system_subrenderers();
     
     if (gfxctl.statspanel == NULL) {
-        gfxctl.subrend_targ = &(gfxctl.statspanel);
+        init_subrend_targ("statspanel", &(gfxctl.statspanel));
         lc_parm_int("sys_render_stats", 1, rchamp);
         gfxctl.subrend_targ = NULL;
     }
@@ -341,7 +353,7 @@ void draw_obj_infobox(BITMAP *scx, int px, int py, int pt) {
         destroy_system_subrenderers();
         
     if (gfxctl.objlook == NULL) {
-        gfxctl.subrend_targ = &(gfxctl.objlook);
+        init_subrend_targ("objlook", &(gfxctl.objlook));
         lua_getglobal(LUA, RENDERER);
         if (!lua_isnil(LUA, -1)) {
             char *s_str = NULL;
@@ -533,11 +545,13 @@ void call_lua_inventory_renderer(BITMAP *scx, int lwho, int bx, int by, int name
     screen_animap.w = scx_sub->w;
     screen_animap.flags = AM_VIRTUAL;
     setup_lua_bitmap(LUA, &screen_animap);
+    gfxctl.tmp_virtual_screen = &screen_animap;
     
     lua_pushinteger(LUA, lwho);
     lua_pushinteger(LUA, namedraw+1);
     lc_call_topstack(3, rfname);    
     destroy_bitmap(scx_sub);
+    gfxctl.tmp_virtual_screen = NULL;
     
     VOIDRETURN();
 }
@@ -828,6 +842,7 @@ int draw_interface(int softmode, int interface_vs, int really) {
     acquire_bitmap(scx);
      
     if (gd.attack_msg || gd.attack_msg_ttl) {
+        int showburst = 0;
         const char *rfname = "sys_render_attack_result";
         
         luastacksize(6);
@@ -838,9 +853,14 @@ int draw_interface(int softmode, int interface_vs, int really) {
         if (gd.attack_msg) {
             lua_pushstring(LUA, gd.attack_msg);
         } else {
-            lua_pushinteger(LUA, gd.attack_dmg_msg);
+            if (gd.attack_dmg_msg == ATTACK_STORED_TABLE) {
+                lua_getglobal(LUA, STORED_ATTACK_INFO);
+            } else {
+                lua_pushinteger(LUA, gd.attack_dmg_msg);
+                showburst = 1;
+            }
         }        
-        lua_pushboolean(LUA, !(gd.attack_msg));
+        lua_pushboolean(LUA, showburst);
         
         if (gfxctl.SR[SR_METHODS].flags & SRF_ACTIVE) {
             lc_call_topstack(4, rfname);
@@ -1004,13 +1024,33 @@ int draw_interface(int softmode, int interface_vs, int really) {
     {
         arrow_draw = 1;
     } else {
-        int PORTW = 138*4;
-        int PORTH = 64;
         int arrow_zone = 1;
+        //int PORTW = 138*4;
+        //int PORTH = 64;
+
+        int PORTW = gfxctl.port_zone_w;
+        int PORTH = gfxctl.port_zone_h;
+
+        /*
+        int pposn;
+        for(pposn=0;pposn<4;pposn++) {
+            if (gfxctl.ppos_r[pposn].flags & SRF_ACTIVE) {
+                int sx = gfxctl.ppos_r[pposn].sizex;
+                int sy = gfxctl.ppos_r[pposn].sizey; 
+                
+                if (sx > PORTW)
+                    PORTW = sx;
+
+                if (sy > PORTH)
+                    PORTH = sy;
+            }            
+        }
+        PORTW *= 4;
+        */
         
         // viewport is not an arrow zone
-        if ((mouse_x >= (gd.vxo - 2)) && (mouse_y >= (gd.vyo - 2))) {
-            if ((mouse_x < (gd.vxo + VIEWPORTW + 2)) && (mouse_y < (gd.vyo + VIEWPORTH + 2))) {
+        if ((mouse_x >= (gd.vxo - 2)) && (mouse_y >= (gd.vyo + gd.vyo_off - 2))) {
+            if ((mouse_x < (gd.vxo + VIEWPORTW + 2)) && (mouse_y < (gd.vyo + gd.vyo_off + VIEWPORTH + 2))) {
                 arrow_zone = 0;
             }
         }
@@ -1635,6 +1675,12 @@ void internal_gui_command(const char *cmdstr, int val) {
         gfxctl.console_lines = val;
     } else if (cmd == 'i') {
         gfxctl.itemname_drawzone = val;
+    } else if (cmd == 'p') {
+        if (!strcmp(cmdstr, "portrait_zone_width")) {
+            gfxctl.port_zone_w = val;
+        } else {
+            gfxctl.port_zone_h = val;
+        }
     }
     
     VOIDRETURN();

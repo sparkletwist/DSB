@@ -53,6 +53,17 @@ function __lua_backward_compat_fixes(filever, curver)
 		
 	end
 	
+	-- Include the old condition handles
+	if (filever <= 71) then
+		C_POISON = conditions.poison.INTERNAL_ID
+		C_SHIELD = conditions.shield.INTERNAL_ID
+		C_SPELLSHIELD = conditions.spellshield.INTERNAL_ID
+		C_FIRESHIELD = conditions.fireshield.INTERNAL_ID
+		C_WINDOW = conditions.window.INTERNAL_ID
+		C_FOOTPRINTS = conditions.footprints.INTERNAL_ID
+		C_INVISIBLE = conditions.invisible.INTERNAL_ID
+	end
+	
 end
 
 
@@ -70,7 +81,54 @@ function __register_objects(zcount)
 	__trt_purge()	
 	for ct=1,(zcount-1) do
 		__trt_obj_writeback(__ZIDT[ct])
-	end		
+	end	
+end
+
+function __register_conditions()
+	if (not conditions or type(conditions) ~= "table") then return end
+	for ic in pairs(conditions) do
+		local cc = conditions[ic]
+
+		local condscope = cc.scope
+		if (cc.scope ~= PARTY) then condscope = INDIVIDUAL end
+			
+		local updaterate = 0
+		if (cc.update_rate and type(cc.update_rate) == "number") then updaterate = cc.update_rate end
+		
+		local bmp1 = nil
+		if (cc.subrenderer_image) then bmp1 = cc.subrenderer_image end
+		
+		local bmp2 = nil
+		if (cc.scope == INDIVIDUAL) then
+			if (cc.portrait_image and type(cc.portrait_image) == "table") then bmp2 = cc.portrait_image end
+		else
+			if (cc.overlay_image and type(cc.overlay_image) == "table") then bmp2 = cc.overlay_image end
+		end
+		
+		local func = cc.update_func
+		if (type(func) ~= "function") then func = nil end
+		
+		local mouth_flag = COND_MOUTH_RED
+		local eye_flag = COND_EYE_RED
+		if (cc.green) then
+			mouth_flag = COND_MOUTH_GREEN
+			eye_flag = COND_EYE_GREEN
+		end
+		
+		local condflags = 0
+		if (cc.mouth_show) then condflags = condflags + mouth_flag end
+		if (cc.eye_show) then condflags = condflags + eye_flag end
+		
+		if (cc.INTERNAL_ID) then
+			dsb_replace_condition(cc.INTERNAL_ID, condscope, bmp1, bmp2, updaterate, func, condflags)
+		else		
+			conditions[ic].INTERNAL_ID = dsb_add_condition(condscope, bmp1, bmp2, updaterate, func, condflags)
+		end
+	end
+end
+
+function dsb_update_conditions()
+	__register_conditions()
 end
 
 function __force_sane(fs, default, min, max)
@@ -162,6 +220,13 @@ function __gui_importation()
 				if (zid == res_zones.console) then
 				    local conlines = __force_sane(gui_info[i].lines, 4, 1, 16)
 					__set_internal_gui("console", conlines)
+					
+				elseif (zid == res_zones.portraits) then
+					local zone_width = __force_sane(gui_info[i].hand_zone_w, 552, 1, 640)
+					local zone_height = __force_sane(gui_info[i].hand_zone_h, 64, 1, 480)
+					
+					__set_internal_gui("portrait_zone_width", zone_width)
+					__set_internal_gui("portrait_zone_height", zone_height)
 				
 				elseif (zid == res_zones.guy_icons) then
 					local icon_width = __force_sane(gui_info[i].icon_width, 38, 1, 640)
@@ -2134,7 +2199,7 @@ function __ed_copy_finish()
 end
 
 function __enter_champion_preview(who)
-	for sl=0,(MAX_INV_SLOTS-1) do -- Start counting from 0
+	for sl=0,(inventory_info.TOTAL_INV_SLOTS-1) do -- Start counting from 0
 		local f = dsb_fetch(CHARACTER, who, sl, 0)
 		if (f) then
 			use_exvar(f)

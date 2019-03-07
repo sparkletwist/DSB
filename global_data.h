@@ -39,7 +39,8 @@ enum {
     T_ON_TURN,
     T_OFF_TURN,
     T_LOCATION_PICKUP,
-    T_LOCATION_DROP
+    T_LOCATION_DROP,
+    T_TILESTEP
 };
 
 #ifndef COLORCONV_KEEP_ALPHA
@@ -178,7 +179,7 @@ struct graphics_control {
     unsigned char do_subrend;
     unsigned char UNUSED_subrend_bkg; // draw background as a subrenderer, maybe?
     unsigned char XX3;
-    unsigned char XX4;
+    unsigned char subrend_targ_init;
     
     int UNUSED_v[2];
     
@@ -191,11 +192,15 @@ struct graphics_control {
     unsigned char override_flip;
     
     BITMAP *i_subrend;
+    const char *subrend_targ_name;
+    
     struct animap **subrend_targ;
     struct animap *subrend;
     struct animap *statspanel;
     struct animap *food_water;
     struct animap *objlook;
+    
+    struct animap *tmp_virtual_screen;
     
     unsigned short curobj_x;
     unsigned short curobj_y;
@@ -205,6 +210,9 @@ struct graphics_control {
     unsigned short con_y;
     unsigned short guy_x;
     unsigned short guy_y;
+    
+    unsigned short port_zone_w;
+    unsigned short port_zone_h;
     
     unsigned short guy_w;
     unsigned short guy_h;
@@ -564,7 +572,7 @@ struct global_data {
 #define DSB_LUA_SOUND 64
 
 #define MAJOR_VERSION 0
-#define MINOR_VERSION 70
+#define MINOR_VERSION 74
 //#define SUB_VERSION 'C'
 
 enum {

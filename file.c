@@ -1331,11 +1331,19 @@ int load_savefile(const char *filename) {
     if (gd.who_method) {
         int nm;
         nm = determine_method(gd.who_method-1, INV_INVALID);
+        
+        if (nm >= ONECLICK_METHOD_OFFSET) {
+            nm &= 0xFF;
+            program_puke("Stored oneclick method");   
+        }
+        
         gd.num_methods = nm;
         gd.need_cz = 1;
     }
     
+#ifdef REALDSB
     lc_parm_int("__lua_backward_compat_fixes", 2, filever, opv);
+#endif
     
     RETURN(1);
 }

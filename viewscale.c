@@ -64,9 +64,12 @@ void invalidate_scale_cache(struct obj_arch *p_arch) {
      invalid_cow(p_arch, V_SIDEVIEW, 3);
      invalid_cow(p_arch, V_OUTVIEW, 3);
      
-     if (p_arch->type == OBJTYPE_MONSTER)
-        invalid_cow(p_arch, V_ATTVIEW, p_arch->iv.n);   
-     else
+     if (p_arch->type == OBJTYPE_MONSTER) {
+        int vn;
+        for (vn=0;vn<p_arch->iv.n;vn++) {
+            invalid_cow(p_arch, V_ATTVIEW + vn, 3);
+        }   
+     } else
         invalid_cow(p_arch, V_INVIEW, 3);
      
      VOIDRETURN();     

@@ -57,6 +57,8 @@ void destroy_all_timers(void) {
 void destroy_system_subrenderers(void) {
 
     onstack("destroy_system_subrenderers");
+    
+    gfxctl.tmp_virtual_screen = NULL;
 
     if (gfxctl.subrend_targ != NULL)
         VOIDRETURN();
@@ -73,7 +75,7 @@ void destroy_system_subrenderers(void) {
 
     conddestroy_animap(gfxctl.objlook);
     gfxctl.objlook = NULL;
-
+    
     VOIDRETURN();
 }
 

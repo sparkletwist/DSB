@@ -9,6 +9,9 @@
 
 #define MAX_FOOD 3072
 
+#define ONECLICK_METHOD_SHIFT   8
+#define ONECLICK_METHOD_OFFSET  256
+
 #define COL_DIFF_TYPES 0x00010000
 #define COL_HAS_DOOR   0x00020000
 #define COL_HAS_OBJ    0x00040000
@@ -156,7 +159,7 @@ enum {
 #define ARFLAG_INSTTURN         0x000400
 #define ARFLAG_NOCZCLOBBER      0x000800
 #define ARFLAG_SMOOTH           0x001000
-#define _ARFLAG_NOTUSED_2       0x002000
+#define ARFLAG_ONECLICK         0x002000
 #define ARFLAG_DZ_EXCHONLY      0x004000
 #define ARFLAG_METHOD_FUNC      0x008000
 #define _ARFLAG_PRIORITY_UNUSED 0x010000
@@ -549,12 +552,14 @@ struct clickzone {
     };
 };
 
+#define MEFLAG_DEFAULT      0x0001
+
 struct att_method {
     char *name;
     unsigned short minlev;
     unsigned short reqclass;
     unsigned short reqclass_sub;
-    unsigned short UNUSED_SHORT;
+    unsigned short method_flags;
     int luafunc;
 };
 

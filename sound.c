@@ -195,26 +195,32 @@ void stop_sound(unsigned int cid) {
     VOIDRETURN();
 }
 
-void stop_all_sound_channels() {
+void stop_all_sound_channels(void) {
     FMOD_RESULT result;
     int i, pchk;
 
     onstack("stop_all_sound_channels");
-            
+    
     for(i=0;i<fchans.max;i++) {    
-        if (fchans.c[i].flags == CHAN_AVAIL)
+        if (fchans.c[i].flags == CHAN_AVAIL) {
             continue;
+        }
         
         result = FMOD_Channel_IsPlaying(fchans.c[i].chan, &pchk);
-        fmod_errcheck(result);
-        if (pchk) {
-            result = FMOD_Channel_Stop(fchans.c[i].chan);
+        if (result != FMOD_ERR_CHANNEL_STOLEN && result != FMOD_ERR_INVALID_HANDLE) 
+        {
             fmod_errcheck(result);
+            if (pchk) {
+                result = FMOD_Channel_Stop(fchans.c[i].chan);
+                fmod_errcheck(result);
+            }
         }
         
         fchans.c[i].chan = NULL;
         fchans.c[i].sample = NULL;
         fchans.c[i].flags = CHAN_AVAIL;
+        
+
     }
 
     VOIDRETURN();    

@@ -9,6 +9,7 @@ void fmod_update(void);
 
 int check_sound(unsigned int cid);
 void stop_sound(unsigned int cid);
+void stop_all_sound_channels(void);
 
 void read_all_sounddata(PACKFILE *pf);
 void write_all_sounddata(PACKFILE *pf);

@@ -10,6 +10,8 @@
 #define SYS_OBJ_PUT_AWAY    -20
 #define SYS_LEADER_SET      -30
 
+#define ATTACK_STORED_TABLE     -2
+
 //struct animap *find_lua_bitmap(char *tstr, char *req);
 
 void DSBLerror(lua_State *LUA, const char *fmt, ...);

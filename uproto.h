@@ -105,6 +105,7 @@ int levelxp(int level);
 
 void add_export_gvar(char *s_vname);
 void register_lua_objects();
+void register_lua_conditions();
 void import_shading_info(void);
 void import_door_draw_info(void);
 

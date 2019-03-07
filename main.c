@@ -429,6 +429,9 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
 	psxf("IMPORTING SYSTEM GRAPHICS");
     get_sysgfx();
     
+    psxf("IMPORTING CONDITIONS");
+    register_lua_conditions();
+    
     gd.exestate = STATE_OBJPARSE;
     psxf("IMPORTING OBJECTS");
     initialize_objects();

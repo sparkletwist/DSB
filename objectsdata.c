@@ -578,6 +578,7 @@ struct att_method *import_attack_methods(const char *obj_name) {
         int tempval;
         int reqclass = 0;
         int reqclass_sub = 0;
+        int method_flags = 0;
         
         lua_pushinteger(LUA, n);
         lua_gettable(LUA, -2);
@@ -597,6 +598,14 @@ struct att_method *import_attack_methods(const char *obj_name) {
         }           
         lua_pop(LUA, 1);
         op[s_ret].name = mname;
+        
+        lua_pushstring(LUA, "default");
+        lua_gettable(LUA, -2);
+        if (lua_isboolean(LUA, -1) && lua_toboolean(LUA, -1))
+            method_flags |= MEFLAG_DEFAULT;
+        lua_pop(LUA, 1);
+        
+        op[s_ret].method_flags = method_flags;
         
         lua_pushinteger(LUA, 2);
         lua_gettable(LUA, -2);
@@ -1283,8 +1292,10 @@ void register_object(lua_State *LUA, int graphical) {
         apply_archflag(o_ptr, "instant_turn", ARFLAG_INSTTURN);
     }
       
-    if (typenum == OBJTYPE_THING)
+    if (typenum == OBJTYPE_THING) {
         apply_archflag(o_ptr, "flying_only", ARFLAG_FLY_ONLY);
+        apply_archflag(o_ptr, "one_click_method", ARFLAG_ONECLICK);   
+    }
         
     if (typenum == OBJTYPE_DOOR) {
         apply_archflag(o_ptr, "smooth", ARFLAG_SMOOTH);

@@ -808,6 +808,7 @@ int to_tile(int lev, int xx, int yy, int dir, int inst, int onoff) {
     else if (onoff == T_OFF_TURN) cmdstr = "off_turn";
     else if (onoff == T_LOCATION_PICKUP) cmdstr = "on_location_pickup";
     else if (onoff == T_LOCATION_DROP) cmdstr = "on_location_drop";
+    //else if (onoff == T_TILESTEP) cmdstr = "on_tilestep";
     
     stackbackc('(');
     v_onstack(cmdstr);
@@ -819,7 +820,15 @@ int to_tile(int lev, int xx, int yy, int dir, int inst, int onoff) {
     
     // now calloc'd instead of fastalloc'd... so they need to be freed
     il_event_list = scan_d_trigger(NULL, dd->t[yy][xx].il[DIR_CENTER], inst);
-    if (dir != DIR_CENTER) {
+    
+    // party always steps on the whole square
+    if (inst == -1) {
+        int sdir;
+        for (sdir=0;sdir<DIR_CENTER;sdir++) {
+            il_event_list = scan_d_trigger(il_event_list,
+                dd->t[yy][xx].il[sdir], inst);
+        }
+    } else if (dir != DIR_CENTER) {
         il_event_list = scan_d_trigger(il_event_list,
             dd->t[yy][xx].il[dir], inst);
     }
@@ -842,7 +851,7 @@ int to_tile(int lev, int xx, int yy, int dir, int inst, int onoff) {
                 struct obj_arch *p_arch = Arch(oinst[i_cinst]->arch);
                 //int cpri = !!(p_arch->arch_flags & ARFLAG_PRIORITY);
                 
-                if (priority == 0 /* always true */) {
+                if (LIKELY(priority == 0) /* always true */) {
                     if (inst == -1 && no_party) {
                         int tr = queryluabool(p_arch, "no_party_triggerable");
                         if (!tr)

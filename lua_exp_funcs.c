@@ -58,6 +58,7 @@ extern int debug;
 const char *Lcstr = "Lua";
 const char *ESBCNAME = "_ESBCNAME";
 const char *DSB_MasterSoundTable = "_DSBMasterSoundTable";
+const char *STORED_ATTACK_INFO = "__STORED_ATTACK_INFO";
 
 extern int lua_cz_n;
 extern struct clickzone *lua_cz;
@@ -583,6 +584,11 @@ int expl_sub_targ(lua_State *LUA) {
     } else {
         subrend_targ = &(gfxctl.subrend);
     }
+    
+    if (gfxctl.subrend_targ_init == 0 && *subrend_targ != NULL) {
+        setup_lua_bitmap(LUA, *subrend_targ);
+        RETURN(1);
+    }
 
     if (*subrend_targ)
         destroy_animap(*subrend_targ);
@@ -596,7 +602,7 @@ int expl_sub_targ(lua_State *LUA) {
     setup_lua_bitmap(LUA, my_a_map);
     *subrend_targ = my_a_map;
     
-    gfxctl.subrend_targ = NULL;
+    gfxctl.subrend_targ_init = 0;
        
     RETURN(1);
 }
@@ -1066,7 +1072,7 @@ int expl_text_size(lua_State *LUA) {
 }
 
 int expl_set_viewport(lua_State *LUA) {
-    int yoff = 20;
+    int yoff = 0;
     int b = 0;
     int xc, yc;
     
@@ -1281,6 +1287,13 @@ int expl_make_wallset_ext(lua_State *LUA) {
     RETURN(1);
 }
 
+int expl_bottomlevel(lua_State *LUA) {
+    INITPARMCHECK(0, funcnames[DSB_BOTTOMLEVEL]);
+    luastacksize(2);
+    lua_pushinteger(LUA, gd.dungeon_levels - 1); 
+    RETURN(1);
+}
+
 int expl_level_getinfo(lua_State *LUA) {
     int lev;
     
@@ -1457,7 +1470,7 @@ int expl_get_condition(lua_State *LUA) {
     
     STARTNONF();
     targ = luaint(LUA, -2, funcnames[DSB_GET_CONDITION], 1);
-    cid = luaint(LUA, -1, funcnames[DSB_GET_CONDITION], 2);    
+    cid = luacondid(LUA, -1, funcnames[DSB_GET_CONDITION], 2);    
     
     if (targ < 0) {
         maxconds = gd.num_pconds;
@@ -1513,7 +1526,7 @@ int expl_condition(lua_State *LUA) {
     
     STARTNONF();
     targ = luaint(LUA, -3 + b, funcnames[DSB_SET_CONDITION], 1);
-    cid = luaint(LUA, -2 + b, funcnames[DSB_SET_CONDITION], 2);
+    cid = luacondid(LUA, -2 + b, funcnames[DSB_SET_CONDITION], 2);
     str = luaint(LUA, -1 + b, funcnames[DSB_SET_CONDITION], 3);
     ENDNONF();
     
@@ -2341,6 +2354,11 @@ int expl_msgzone(lua_State *LUA) {
             lczn = &lua_cz_n;
             cx = xx + gd.vxo + gii.srx;
             cy = yy + gd.vyo + gd.vyo_off + gii.sry;
+        } else if (sbmp == gfxctl.tmp_virtual_screen) {
+            lcz = &lua_cz;
+            lczn = &lua_cz_n;
+            cx = xx + gd.vxo;
+            cy = yy + gd.vyo + gd.vyo_off;         
         } else {
             if (complaints < 4) {
                 complaints++;
@@ -2918,7 +2936,7 @@ int expl_sound(lua_State *LUA) {
 int expl_stopsound(lua_State *LUA) {
     int stop_all_music = 0;
     int i;
-    unsigned int shand;
+    int shand;
     
     INITPARMCHECK(1, funcnames[DSB_STOPSOUND]);
     
@@ -4008,25 +4026,68 @@ int expl_visited(lua_State *LUA) {
     RETURN(1);
 }
 
+int expl_attack_info(lua_State *LUA) {
+    int atk_ttl = 3;
+
+    INITVPARMCHECK(1, funcnames[DSB_ATTACK_INFO]);
+    if (lua_gettop(LUA) == 2) {
+        atk_ttl = luaint(LUA, -1, funcnames[DSB_ATTACK_INFO], 2);
+        if (atk_ttl < 1) atk_ttl = 1;            
+        lua_pop(LUA, 1);
+    }
+  
+    if (!lua_istable(LUA, -1)) {
+        lua_pop(LUA, 1);
+        lua_newtable(LUA);
+    }
+    lua_setglobal(LUA, STORED_ATTACK_INFO);
+  
+    if (gd.attack_msg) {
+        dsbfree(gd.attack_msg);
+        gd.attack_msg = NULL;
+    }
+    
+    gd.attack_dmg_msg = ATTACK_STORED_TABLE;
+    gd.attack_msg_ttl = atk_ttl;    
+    
+    RETURN(0);
+}
+
 int expl_attack_text(lua_State *LUA) {
+    int atk_ttl = 3;
+    int b = 0;
     const char *at;
     char *s_at;
     
-    INITPARMCHECK(1, funcnames[DSB_ATTACK_TEXT]);
-    at = luastring(LUA, -1, funcnames[DSB_ATTACK_TEXT], 1);
+    INITVPARMCHECK(1, funcnames[DSB_ATTACK_TEXT]);
+    if (lua_gettop(LUA) == 2) {
+        atk_ttl = luaint(LUA, -1, funcnames[DSB_ATTACK_TEXT], 2);
+        if (atk_ttl < 1) atk_ttl = 1;            
+        b = -1;
+    }
+    at = luastring(LUA, -1 + b, funcnames[DSB_ATTACK_TEXT], 1);
     s_at = dsbstrdup(at);
     if (gd.attack_msg)
         dsbfree(gd.attack_msg);
     gd.attack_msg = s_at;
-    gd.attack_msg_ttl = 3;    
+    
+    gd.attack_msg_ttl = atk_ttl;    
+    
     RETURN(0);
 }
 
 int expl_attack_damage(lua_State *LUA) {
+    int atk_ttl = 2;
+    int b = 0;
     int dmg;
     
-    INITPARMCHECK(1, funcnames[DSB_ATTACK_DAMAGE]);
-    dmg = luaint(LUA, -1, funcnames[DSB_ATTACK_DAMAGE], 1);
+    INITVPARMCHECK(1, funcnames[DSB_ATTACK_DAMAGE]);
+    if (lua_gettop(LUA) == 2) {
+        atk_ttl = luaint(LUA, -1, funcnames[DSB_ATTACK_DAMAGE], 2);
+        if (atk_ttl < 1) atk_ttl = 1;            
+        b = -1;
+    }
+    dmg = luaint(LUA, -1 + b, funcnames[DSB_ATTACK_DAMAGE], 1);
     if (dmg < 1 || dmg > 999) 
         DSBLerror(LUA, "Bad dmg value %d", dmg);
         
@@ -4036,7 +4097,7 @@ int expl_attack_damage(lua_State *LUA) {
     }
          
     gd.attack_dmg_msg = dmg;
-    gd.attack_msg_ttl = 2;
+    gd.attack_msg_ttl = atk_ttl;
     RETURN(0);
 }
 
@@ -5011,6 +5072,7 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_level_flags);
     NEWL(expl_level_tint);
     NEWL(expl_level_getinfo);
+    NEWL(expl_bottomlevel);
     NEWL(expl_spawn);
     NEWL(expl_move);
     NEWL(expl_move_moncol);
@@ -5154,6 +5216,7 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_rand_seed);
     NEWL(expl_attack_text);
     NEWL(expl_attack_damage);
+    NEWL(expl_attack_info);
     NEWL(expl_export);
     NEWL(expl_replace_method);
     NEWL(expl_linesplit);

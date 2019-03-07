@@ -144,7 +144,6 @@ BITMAP *image_loader(const char *l_str, const char *longname, RGB *use256) {
     }
     if (r_bmp != NULL) RETURN(r_bmp);
 
-    
     snprintf(p_str, sizeof(p_str), "%s/graphics2.dat#%s", gd.bprefix, noslash_l_str);
     r_bmp = load_pcx(p_str, use256); 
     if (r_bmp != NULL) RETURN(r_bmp);

@@ -296,6 +296,10 @@ int determine_method(int ppos, int isl) {
     int i = 0;
     int n_meths = 0;
     
+    int oneclick_offset = 0;
+    int oneclick_weapon_method = 0;
+    int unarmed_oneclick_method_check = 0;
+    
     onstack("determine_method");
     
     invoker_num = gd.party[ppos]-1;
@@ -321,6 +325,11 @@ int determine_method(int ppos, int isl) {
             lua_pushinteger(LUA, invoker_num + 1);
             meth = lua_generate_methods(2, p_arch->luaname);
         }
+        
+        if (p_arch->arch_flags & ARFLAG_ONECLICK) {
+            oneclick_weapon_method = 1;
+        }
+        
     } else {
         meth = invoker->method;
         if (!meth) {
@@ -330,6 +339,8 @@ int determine_method(int ppos, int isl) {
             lua_pushinteger(LUA, invoker_num + 1);
             meth = lua_generate_methods(2, invoker->method_name);
         }
+        
+        unarmed_oneclick_method_check = 1;
     }
     
     if (meth == NULL)
@@ -352,23 +363,23 @@ int determine_method(int ppos, int isl) {
         clear_method();
     }
     
-    RETURN(n_meths);
-}
-
-void click_method_button(int z, int mloc) {
-    int gotmethod = 0;
-    int nm;
+    if (n_meths > 0) {
+        if (oneclick_weapon_method || unarmed_oneclick_method_check) {
+            int i;
+            for (i=0;i<n_meths;i++) {
+                if (gd.c_method[i]->method_flags & MEFLAG_DEFAULT) {
+                    oneclick_offset = (i+1) << ONECLICK_METHOD_SHIFT;
+                    break;    
+                }   
+            }    
+            
+            if (oneclick_weapon_method && (oneclick_offset == 0)) {
+                oneclick_offset = ONECLICK_METHOD_OFFSET;   
+            }
+        }  
+    }
     
-    onstack("click_method_button"); 
-
-    nm = determine_method(z, mloc);
-    if (nm) {
-        gd.who_method = (z+1);
-        gd.num_methods = nm;
-        gd.need_cz = 1;
-    }  
-    
-    VOIDRETURN();
+    RETURN(n_meths + oneclick_offset);
 }
 
 void selected_method(int z) {
@@ -414,6 +425,32 @@ void selected_method(int z) {
     gd.num_methods = 0;     
 
     lc_call_topstack(4, gd.c_method[z]->name);
+    
+    VOIDRETURN();
+}
+
+void click_method_button(int z, int mloc) {
+    int gotmethod = 0;
+    int nm;
+    int one_click_method = 0;
+    
+    onstack("click_method_button"); 
+
+    nm = determine_method(z, mloc);
+    if (nm >= ONECLICK_METHOD_OFFSET) {
+        one_click_method = (nm & 0xFF00) >> ONECLICK_METHOD_SHIFT;
+        nm &= 0xFF;
+    }
+    
+    if (nm) {
+        gd.who_method = (z+1);
+        gd.num_methods = nm;
+        gd.need_cz = 1;
+    }  
+    
+    if (one_click_method > 0) {
+        selected_method(one_click_method);
+    }
     
     VOIDRETURN();
 }

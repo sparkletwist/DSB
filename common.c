@@ -40,6 +40,10 @@ void register_lua_objects(void) {
     lc_parm_int("__register_objects", 1, ZID);
 }
 
+void register_lua_conditions(void) {
+    lc_parm_int("__register_conditions", 0);
+}
+
 void initialize_objects(void) {
     // inst-related stuff
     init_all_objects();
