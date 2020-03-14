@@ -30,6 +30,8 @@ extern struct inventory_info gii;
 
 extern int lua_cz_n;
 extern struct clickzone *lua_cz;
+extern int lua_vscr_cz_n;
+extern struct clickzone *lua_vscr_cz;
 
 extern lua_State *LUA;
 
@@ -677,6 +679,9 @@ void init_all_objects(void) {
     lua_cz_n = 0;
     lua_cz = NULL;
     
+    lua_vscr_cz_n = 0;
+    lua_vscr_cz = NULL;
+    
     VOIDRETURN();   
 }
 
@@ -1299,6 +1304,7 @@ void register_object(lua_State *LUA, int graphical) {
         
     if (typenum == OBJTYPE_DOOR) {
         apply_archflag(o_ptr, "smooth", ARFLAG_SMOOTH);
+        apply_rhack(o_ptr, "clickable", RHACK_CLICKABLE);
     }
         
     apply_rhack_f(o_ptr, "bitmap_tweaker", RHACK_DYNCUT);

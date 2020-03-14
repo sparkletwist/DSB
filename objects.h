@@ -724,7 +724,7 @@ void inv_instmd_queue(int op, int lev, int xx, int yy, int dir,
     int inst, int data);
     
 void exec_flyinst(unsigned int inst, struct inst *p_inst,
-    int travdir, int flydist, int damagepower, short delta, short, int instant);
+    int travdir, int flydist, int damagepower, short delta, short);
 void set_fdelta_to_begin_now(struct inst *p_obj_inst);
 
 int scan_inventory_click(int xx, int yy);

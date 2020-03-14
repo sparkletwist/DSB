@@ -166,6 +166,8 @@ extern struct clickzone cz[NUM_ZONES];
 
 extern int lua_cz_n;
 extern struct clickzone *lua_cz;
+extern int lua_vscr_cz_n;
+extern struct clickzone *lua_vscr_cz;
 
 extern struct global_data gd;
 extern struct inventory_info gii;
@@ -1620,8 +1622,8 @@ BITMAP *magic_dissolve_slice(BITMAP *base, BITMAP *compobase, int crop, int crop
     RETURN(newcompo);      
 }
 
-int draw_door(int softmode, struct inst *p_inst, struct obj_arch *p_arch,
-    BITMAP *scx, int rx, int ry, int sm, int tflags)
+int draw_door(unsigned int inst_id, int softmode, struct inst *p_inst, struct obj_arch *p_arch,
+    BITMAP *scx, int rx, int ry, int sm, int tflags, int cznum)
 {
     struct animap *amap = NULL;
     struct animap *d_amap;
@@ -1803,6 +1805,21 @@ int draw_door(int softmode, struct inst *p_inst, struct obj_arch *p_arch,
             !!(p_inst->gfxflags & G_FLIP), 0, alpha,
             p_inst, !!(p_arch->rhack & RHACK_NOSHADE));
             
+        if (cznum && (p_arch->rhack & RHACK_CLICKABLE)) {
+            if (crop == 0 || (p_arch->dtype != DTYPE_MAGICDOOR)) {
+                int czx = g_i_cztrk;
+                int advance = 1;
+            
+                make_cz(czx, mx, my, drawtarg->w, drawtarg->h, inst_id);
+                
+                if (advance) {
+                    g_i_cztrk++; 
+                    if (g_i_cztrk == 38)
+                        g_i_cztrk = 19;
+                }
+            }
+        }  
+            
         if (cut_compo) {
             destroy_bitmap(cut_compo);
         }
@@ -1884,8 +1901,8 @@ int draw_single_floorthing(struct inst_loc *dt_il,
         }
 
         if (!b_doorblock) {
-            draw_door(softmode, p_obj_inst, p_obj_arch,
-                scx, rx, ry, sm, tflags);
+            draw_door(dt_il->i, softmode, p_obj_inst, p_obj_arch,
+                scx, rx, ry, sm, tflags, cznum);
         }
             
         RETURN(d);
@@ -2136,12 +2153,15 @@ int draw_single_floorthing(struct inst_loc *dt_il,
                 int czx = g_i_cztrk;
                 int advance = 1;
                 
+                // do doorbuttons have to be clickzone 11 anymore?
                 if ((p_obj_arch->rhack & RHACK_DOORBUTTON) ||
                     (p_obj_arch->rhack & RHACK_DOORFRAME) ||
                     (p_obj_arch->rhack & RHACK_MIRROR))
                 {
-                    czx = 11;
-                    advance = 0;
+                    if (cz[11].w == 0) {
+                        czx = 11;
+                        advance = 0;
+                    }
                 }
                 
                 make_cz(czx, mx, vy, sub_b->w, vh, dt_il->i);
@@ -4196,6 +4216,15 @@ void draw_luaclickzones(int softmode) {
         }
         i++;   
     }
+
+    i=0;
+    while(i<lua_vscr_cz_n) {
+        if (lua_vscr_cz[i].w) {
+            rect(scx, lua_vscr_cz[i].x, lua_vscr_cz[i].y, 
+                lua_vscr_cz[i].x+lua_vscr_cz[i].w, lua_vscr_cz[i].y+lua_vscr_cz[i].h, makecol(192, 32, 192));
+        }
+        i++;   
+    }
     
     for(srn=0;srn<NUM_SR;++srn) {
         if (gfxctl.SR[srn].flags & SRF_ACTIVE) {
@@ -4253,13 +4282,12 @@ void draw_clickzones(int softmode) {
     draw_luaclickzones(softmode);
 }
 
-void destroy_subrend(void) {
-    
-    clear_lua_cz();
+void destroy_subrend() {
     
     if (gfxctl.subrend != NULL) {
         destroy_animap(gfxctl.subrend);
         gfxctl.subrend =  NULL;
+        clear_lua_cz();
     }
     gfxctl.do_subrend = 0;
 }
@@ -4279,7 +4307,8 @@ int render_inventory_view(int softmode, int pt) {
     int bgc = makecol(182, 182, 182);
     int lbgc;
     int exw, exh;
-    
+    int eyemouth_condflags;
+
     onstack("render_inventory_view");
     
     scx = find_rendtarg(softmode);
@@ -4292,6 +4321,7 @@ int render_inventory_view(int softmode, int pt) {
     me = &(gd.champs[pcidx]);
     
     setup_background(scx, 0);
+    clear_lua_vscr_cz();
     
     if (me->invscr)
         inv_a = me->invscr;
@@ -4373,8 +4403,8 @@ int render_inventory_view(int softmode, int pt) {
             draw_gfxicon(scx, gii.sel_box, bx + vx, by + vy, 0, NULL);
         }
     }
-        
-    if (me->inv[0] && (pt || gfxctl.do_subrend)) {
+                
+    if (me->inv[INV_R_HAND] && (pt || gfxctl.do_subrend)) {
         destroy_subrend();
         gd.lua_bool_hack = 1;
         call_member_func(me->inv[0], "subrenderer", LHFALSE);
@@ -4392,7 +4422,6 @@ int render_inventory_view(int softmode, int pt) {
             draw_gfxicon(scx, gii.eye.img, bx+gii.eye.x, by+gii.eye.y, 0, 0);
         
         if (zoneobj) {
-            
             destroy_subrend();
             gd.lua_bool_hack = 1;
             call_member_func(zoneobj, "subrenderer", LHTRUE);
@@ -4411,11 +4440,13 @@ int render_inventory_view(int softmode, int pt) {
             draw_gfxicon(scx, gii.eye.img, bx+gii.eye.x, by+gii.eye.y, 0, 0);
     }
     
-    draw_eye_border(scx, me, bx+gii.eye.x, by+gii.eye.y);
+    eyemouth_condflags = lc_parm_int("sys_get_border_eyemouth", 1, pcidx+1);
+    
+    draw_eye_border(scx, me, bx+gii.eye.x, by+gii.eye.y, eyemouth_condflags);
 
     if (gii.mouth.img) {
         draw_gfxicon(scx, gii.mouth.img, bx+gii.mouth.x, by+gii.mouth.y, 0, 0);
-        draw_mouth_border(scx, me, bx+gii.mouth.x, by+gii.mouth.y);
+        draw_mouth_border(scx, me, bx+gii.mouth.x, by+gii.mouth.y, eyemouth_condflags);
     }
                     
     if (gfxctl.subrend)

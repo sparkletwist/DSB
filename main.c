@@ -17,6 +17,7 @@
 #include "keyboard.h"
 #include "istack.h"
 #include "trans.h"
+#include "D_res.h"
 
 //typedef void (*sigptr)(int);
 
@@ -165,6 +166,11 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     int ugly_window = 0;
     int df = 2;
     const char *tmp_dprefix;
+    const char *tmp_locstr;
+    
+    #ifdef WIN32
+    HANDLE dsbicon;
+    #endif
     
     signal(SIGSEGV, sigcrash);
     signal(SIGILL, sigcrash);
@@ -177,6 +183,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     
     v_onstack("DSBmain.install");
     InitializeCriticalSectionAndSpinCount(&Queue_CS, 1000);
+    set_uformat(U_ASCII); // is anyone really expecting unicode support?
     install_allegro(SYSTEM_NONE, &errno, atexit);
 
     three_finger_flag = 1;
@@ -230,9 +237,20 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
             poop_out("No dungeon selected. Exiting.");
         }
     }
-	
+    	
 	gd.compile = get_config_int("Main", "Compile", 0);
-	
+    
+    tmp_locstr = get_config_string("Settings", "Locale", "EN");
+    gd.locale[0] = toupper(tmp_locstr[0]);
+    if (tmp_locstr[0] == '\0') {
+        gd.locale[0] = 'X';
+        gd.locale[1] = 'X';
+    } else if (tmp_locstr[1] == '\0') {
+        gd.locale[1] = 'X';
+    } else {
+        gd.locale[1] = toupper(tmp_locstr[1]);
+    }   
+       	
 	gd.bprefix = dsbstrdup(get_config_string("Settings", "Base", "base"));
 	gd.trip_buffer = get_config_int("Settings", "TripleBuffer", 1);
 	
@@ -246,8 +264,6 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     }
     double_window = get_config_int("Settings", "DoubleWindow", 0);
     ugly_window = get_config_int("Settings", "UglyScaleWindow", 0);
-    
-    gd.soundfade = get_config_int("Settings", "SoundFade", 60);
     
     tvar = get_config_int("Settings", "CumulativeDamage", 1);
     if (tvar)
@@ -402,6 +418,13 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     //autogenerateg2();
     init_fonts();
     psxf("INITIALIZING SYSTEM");
+    
+    #ifdef WIN32
+    dsbicon = LoadImage(h_this, MAKEINTRESOURCE(DSB_ICON), IMAGE_ICON, 32, 32, 0);
+    if (dsbicon)
+        SendMessage(win_get_window(), WM_SETICON, 0, (LPARAM)dsbicon);  
+    #endif
+    
     init_console();
     initmovequeue();
     blank_translation_table();

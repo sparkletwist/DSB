@@ -5,6 +5,7 @@ enum {
 };
 
 #define FS_B_DRAW_GAME      0x01
+#define FS_B_INVENTORY      0x02
 
 struct fullscreen {
     BITMAP *fs_scrbuf;

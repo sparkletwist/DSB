@@ -36,6 +36,8 @@ extern struct wallset **ws_tbl;
 extern struct global_data gd;
 extern struct inventory_info gii;
 extern struct translate_table Translate;
+extern struct sound_control sndctl;
+
 
 extern FILE *errorlog;
 extern struct dungeon_level *dun;
@@ -263,6 +265,7 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "dsb_export",
     "dsb_replace_methods",
     "dsb_linesplit",
+    "dsb_highrune",
     "dsb_get_gameflag",
     "dsb_set_gameflag",
     "dsb_clear_gameflag",
@@ -329,7 +332,7 @@ int il_nextinst(lua_State *LUA) {
         if (oinst[ic]) {
             lua_pushinteger(LUA, ic);
             RETURN(1);
-        }
+        }\
     }
     
     lua_pushnil(LUA);
@@ -2048,7 +2051,9 @@ int expl_set_cell(lua_State *LUA) {
         dun[lev].t[yy][xx].w |= 1;
     else
         dun[lev].t[yy][xx].w &= ~(1);
-
+        
+    sndctl.geometry_dirty = 1;
+    
     RETURN(0);
 }
 
@@ -2398,6 +2403,27 @@ int expl_linesplit(lua_State *LUA) {
     dsbfree(d_sl);
     
     RETURN(2);
+}
+
+int expl_highrune(lua_State *LUA) {
+    int rnum;
+    unsigned char output[2];
+    
+    INITPARMCHECK(1, funcnames[DSB_HIGHRUNE]);
+    
+    STARTNONF();
+    rnum = luaint(LUA, -1, funcnames[DSB_HIGHRUNE], 1);
+    ENDNONF();
+    
+    if (rnum > 127)
+        rnum = 127;
+    
+    output[0] = rnum + 128;
+    output[1] = 0;
+     
+    lua_pushstring(LUA, output);
+    
+    RETURN(1);
 }
 
 int expl_get_xp(lua_State *LUA) {

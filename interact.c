@@ -17,6 +17,7 @@
 #include "gamelock.h"
 #include "keyboard.h"
 #include "mparty.h"
+#include "localtext.h"
 
 extern const char *CSSAVEFILE[];
 extern char *Iname[4];
@@ -30,6 +31,7 @@ struct inst *oinst[NUM_INST];
 extern struct global_data gd;
 extern struct graphics_control gfxctl;
 extern struct inventory_info gii;
+extern struct system_locstr syslocstr;
 
 extern lua_State *LUA;
 extern FILE *errorlog;
@@ -37,6 +39,8 @@ extern FILE *errorlog;
 struct clickzone cz[NUM_ZONES];
 int lua_cz_n;
 struct clickzone *lua_cz;
+int lua_vscr_cz_n;
+struct clickzone *lua_vscr_cz;
 
 extern int PPis_here[4];
 extern int viewstate;
@@ -85,6 +89,8 @@ void exit_inventory_view(void) {
     gd.softframecnt = 4;
         
     destroy_all_subrenderers();
+    clear_lua_cz();
+    clear_lua_vscr_cz();
     
     lc_parm_int("sys_inventory_exit", 2, was_looked, c_was_looked);
     
@@ -468,6 +474,14 @@ void clear_lua_cz(void) {
         lua_cz_n = 0;
     }    
 }
+
+void clear_lua_vscr_cz(void) {
+    if (lua_vscr_cz_n) {
+        dsbfree(lua_vscr_cz);
+        lua_vscr_cz = NULL;
+        lua_vscr_cz_n = 0;
+    }    
+}
     
 void new_lua_cz(unsigned int i_zoneflags, struct clickzone **p_cz, int *ct, int zn, int xx, int yy,
     int w, int h, unsigned int cont_inst, unsigned int ext_data)
@@ -813,9 +827,12 @@ int zone_click(int opc, struct champion *me, int z,
     
     s = inv_obj_exch(z, who_look, opc, putdown, pickup);
 
-    // zone 0 always generates the subrenderer
-    if (!s && z == 0 && subrend)
+    // zone 0 (right hand) always generates the subrenderer
+    if (!s && z == INV_R_HAND && subrend) {
         gfxctl.do_subrend = 1;
+        gfxctl.reassert_sys_subrend = 1;
+        clear_lua_cz();
+    }
 
     RETURN(s);
 }
@@ -965,6 +982,8 @@ void inventory_clickzone(int z, int who_look, int subrend) {
 
         gd.gui_mode = GUI_WANT_SAVE;
         *gd.gl_viewstate = VIEWSTATE_GUI;
+        clear_lua_cz();
+        clear_lua_vscr_cz();
         freeze_sound_channels();
     }
            
@@ -985,6 +1004,9 @@ void got_gui_clickzone(int z) {
                 gd.gui_button_wait = 10;
                 gd.gui_down_button = z;
                 gd.gui_next_mode = 0;
+                
+                gfxctl.do_subrend = 1;
+                gfxctl.reassert_sys_subrend = 1;
                 break;
                 
             case 4:
@@ -1247,7 +1269,7 @@ void objinst_click(int z, int abs_x, int abs_y) {
             int one_item;
             
             // never treat clickable flooritems this way
-            if (p_arch->type == OBJTYPE_UPRIGHT)
+            if (p_arch->type == OBJTYPE_UPRIGHT || p_arch->type == OBJTYPE_DOOR)
                 one_item = 0;
             else
                 one_item = !!(gd.gameplay_flags & GP_ONE_WALLITEM);
@@ -1562,7 +1584,7 @@ void got_mkeypress(int type, int key) {
                     enter_inventory_view(gd.leader);
                 if (key == KD_QUICKSAVE) {
                     if (lc_parm_int("sys_forbid_save", 0)) {
-                        console_system_message("SAVING IS CURRENTLY NOT ALLOWED.", makecol(255, 255, 255));
+                        console_system_message(syslocstr.cantsave, makecol(255, 255, 255));
                     } else {
                         int chosen_file = -1;
                         int failed = 0;
@@ -1572,7 +1594,7 @@ void got_mkeypress(int type, int key) {
                             for(i_sv=0;i_sv<5;++i_sv) {
                                 if (i_sv == 4) {
                                     failed = 1;
-                                    console_system_message("ALL SAVE SLOTS ARE FULL. PLEASE SAVE MANUALLY.", makecol(255, 255, 255));
+                                    console_system_message(syslocstr.quicksavefail, makecol(255, 255, 255));
                                     break;
                                 }
                                 if (!check_for_savefile(CSSAVEFILE[i_sv], NULL, iname)) {
@@ -1598,7 +1620,7 @@ void got_mkeypress(int type, int key) {
                 } else if (key == KD_GOSLEEP) {
                     int fs = lc_parm_int("sys_forbid_sleep", 0);
                     if (fs) {
-                        console_system_message("SLEEPING IS CURRENTLY NOT ALLOWED.", makecol(255, 255, 255));
+                        console_system_message(syslocstr.cantsleep, makecol(255, 255, 255));
                     } else {
                         if (*gd.gl_viewstate == VIEWSTATE_INVENTORY) {
                             exit_inventory_view();
@@ -1790,6 +1812,10 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
                 
                 interface_click();
                 gd.gui_button_wait = 1;
+                
+                gfxctl.do_subrend = 1;
+                gfxctl.reassert_sys_subrend = 1;
+                
                 gd.gui_next_mode = 0;
                 
             }
@@ -1875,14 +1901,27 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
     }
         
     if (viewstate == VIEWSTATE_DUNGEON) {
+        int noclick = 1;
+        int lv_zr = 18;
+        int multiprocess = 1;
+            
         gd.click38 = b_scan_clickzones(38, cz, xx, yy, 40);
         zr = scan_clickzones(cz, xx, yy, 18);
-        if (zr != -1)
-            objinst_click(zr, xx, yy);
-        else {
-            int noclick = 1;
-            int lv_zr = 18;
+        
+        if (zr != -1) {            
+            multiprocess = 0;
             
+            // next tile floor drop zones allow empty hand clicks through
+            if (zr == 14 || zr == 15) {
+                if (gd.mouseobj == NULL) {
+                    multiprocess = 1;
+                }
+            }
+            
+            objinst_click(zr, xx, yy);
+        }
+
+        if (multiprocess) {
             while (lv_zr < 38) {
                 lv_zr = b_scan_clickzones(lv_zr, cz, xx, yy, 38);
                 if (lv_zr == -1)
@@ -1907,6 +1946,12 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
             zr = scan_clickzones(lua_cz, xx, yy, lua_cz_n);
             if (zr != -1)
                 got_lua_clickzone(lua_cz, zr, gd.who_look);
+        }
+        
+        if (lua_vscr_cz_n) {
+            zr = scan_clickzones(lua_vscr_cz, xx, yy, lua_vscr_cz_n);
+            if (zr != -1)
+                got_lua_clickzone(lua_vscr_cz, zr, gd.who_look);
         }
         
         if (zr == -1) {

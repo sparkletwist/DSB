@@ -72,6 +72,7 @@ void internal_guyiconinfo(unsigned int w, unsigned int h, unsigned int spcx, uns
 void destroy_dynalloc_constants(void);
 
 void clear_lua_cz(void);
+void clear_lua_vscr_cz(void);
 void init_t_events(void);
 
 void inst_destroy(unsigned int inst, int);
@@ -160,3 +161,5 @@ const char *make_noslash(const char *l_str);
 void dsb_clear_keybuf(void);
 void dsb_clear_immed_key_queue(void);
 void dsb_shift_immed_key_queue(void);
+
+void import_and_setup_localization();

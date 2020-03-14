@@ -33,8 +33,6 @@ extern HINSTANCE global_instance;
 
 // common variables that may not be needed
 unsigned int i_s_error_c;
-struct clickzone *lua_cz;
-int lua_cz_n;
 FONT *ROOT_SYSTEM_FONT;
 
 extern char dbuffer[1024];
@@ -622,7 +620,7 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     edg.haccel = CreateAcceleratorTable(myAccel,
         sizeof(myAccel) / sizeof(ACCEL));
     
-    SetWindowText(edg.infobar, "ESB 0.9s (DSB 0.74) Ready");
+    SetWindowText(edg.infobar, "ESB for DSB 0.76 Ready");
     ed_resizesubs(sys_hwnd);
     force_redraw(edg.subwin, 1);
     purge_dirty_list();

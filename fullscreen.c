@@ -36,6 +36,7 @@ int fullscreen_mode(struct fullscreen *fsd) {
     int fade_running = 0;
     int fadein = 255;
     int fadeout = 0;
+    int fs_pt = 1;
     
     onstack("fullscreen_mode");
     
@@ -95,10 +96,19 @@ int fullscreen_mode(struct fullscreen *fsd) {
                         
             if (fsd->fs_bflags & FS_B_DRAW_GAME) {
                 FORCE_RENDER_TARGET = drawbuf;
-                render_dungeon_view(1, 0);
-                openclip(1);
-                draw_interface(1, VIEWSTATE_DUNGEON, 0);
-                draw_champions(1, FORCE_RENDER_TARGET, -1);
+                
+                if (fsd->fs_bflags & FS_B_INVENTORY) {
+                    int fs_ivs = viewstate;
+                    render_inventory_view(1, fs_pt);
+                    fs_pt = 0;
+                    draw_interface(1, fs_ivs, 0); 
+                    draw_champions(1, FORCE_RENDER_TARGET, gd.party[gd.who_look]);    
+                } else {
+                    render_dungeon_view(1, 0);
+                    openclip(1);
+                    draw_interface(1, VIEWSTATE_DUNGEON, 0);
+                    draw_champions(1, FORCE_RENDER_TARGET, -1);
+                }
                 FORCE_RENDER_TARGET = NULL;
             } else {
                 clear_to_color(drawbuf, 0);   

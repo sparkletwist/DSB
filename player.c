@@ -8,6 +8,7 @@
 #include "gproto.h"
 #include "monster.h"
 #include "istack.h"
+#include "timer_events.h"
 #include "mparty.h"
 
 extern struct global_data gd;
@@ -28,8 +29,12 @@ void party_update(void) {
     lc_parm_int("sys_tick", 1, gd.updateclock);
     
     for (n=0;n<4;n++) {
-        if (gd.idle_t[n])
-            --gd.idle_t[n];
+        if (gd.idle_t[n] & IDLE_INITIAL_TICK) {
+            gd.idle_t[n] &= 0xFFF;
+        } else {
+            if (gd.idle_t[n])
+                --gd.idle_t[n];
+        }
     }
         
     gd.updateclock++;

@@ -201,6 +201,7 @@ void import_core_strings(void) {
     if (!lua_istable(LUA, -1))
         poop_out("Cannot find barnames Lua table");
 
+    /*
     for(i=0;i<3;++i) {
         const char *vstr;
 
@@ -216,6 +217,8 @@ void import_core_strings(void) {
 
         lua_pop(LUA, 1);
     }
+    */
+    
     lua_pop(LUA, 1);
 }
 
@@ -246,10 +249,9 @@ void import_lua_constants(void) {
     gd.t_ypl = 14;
     
     import_core_colors();
-    
     update_all_inventory_info();
-  
     import_core_strings();
+    import_sound_info();
     
     gd.max_lvl = luacharglobal("xp_levels");
     
@@ -317,6 +319,7 @@ void flush_guy_icons(void) {
 void update_all_system(void) {
     import_core_strings();
     import_core_colors();
+    import_sound_info();
     flush_guy_icons();
 }
 

@@ -16,6 +16,8 @@ enum {
     OPENSHOT_PARTY_OBJECT
 };
 
+#define IDLE_INITIAL_TICK   0x1000
+
 #define DELAY_EOT_TIMER     -5999
 
 #define TE_DECMODE      0x02

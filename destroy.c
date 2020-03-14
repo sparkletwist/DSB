@@ -63,9 +63,13 @@ void destroy_system_subrenderers(void) {
     if (gfxctl.subrend_targ != NULL)
         VOIDRETURN();
 
-    conddestroy_animap(gfxctl.subrend);
-    gfxctl.subrend = NULL;
-    gfxctl.do_subrend = 1;
+    if (gfxctl.subrend != NULL) {
+        destroy_animap(gfxctl.subrend);
+        gfxctl.subrend = NULL;
+        
+        // don't assert this here, code that needs it will assert it
+        //gfxctl.do_subrend = 1;
+    }
 
     conddestroy_animap(gfxctl.statspanel);
     gfxctl.statspanel = NULL;

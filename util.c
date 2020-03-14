@@ -52,6 +52,9 @@ void init_fonts(void) {
     VOIDRETURN();
 }   
 
+// graphics.dsb doesn't support slashes in shortnames, so truncate all filenames
+// to the end of the last slash... of course this will cause a problem if you
+// have multiple graphics with the same shortname! maybe fix that at some point?
 const char *make_noslash(const char *l_str) {
     const char *noslash_l_str;
     const char *ptr;

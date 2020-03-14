@@ -62,6 +62,8 @@ const char *STORED_ATTACK_INFO = "__STORED_ATTACK_INFO";
 
 extern int lua_cz_n;
 extern struct clickzone *lua_cz;
+extern int lua_vscr_cz_n;
+extern struct clickzone *lua_vscr_cz;
 
 extern const char *DSBMTGC;
 extern istack istaparty;
@@ -2230,7 +2232,7 @@ int expl_objzone(lua_State *LUA) {
     zn = luaint(LUA, -3, funcnames[DSB_OBJZONE], 3);
     xx = luaint(LUA, -2, funcnames[DSB_OBJZONE], 4);
     yy = luaint(LUA, -1, funcnames[DSB_OBJZONE], 5);
-    
+        
     csr_found = find_targeted_csr(sbmp, xx, yy, &lcz, &lczn, &cx, &cy);
     
     if (!csr_found) {
@@ -2238,7 +2240,7 @@ int expl_objzone(lua_State *LUA) {
         lczn = &lua_cz_n;  
         cx = xx + gd.vxo + gii.srx;
         cy = yy + gd.vyo + gd.vyo_off + gii.sry;      
-        if (sbmp != gfxctl.subrend) {
+        if ((sbmp != gfxctl.subrend) && (!gfxctl.subrend_targ || (sbmp != *gfxctl.subrend_targ))) {
             if (complaints < 4) {
                 complaints++;
                 gd.lua_nonfatal = 1;
@@ -2261,9 +2263,11 @@ int expl_objzone(lua_State *LUA) {
         
         if (zn < 0)
             zn = find_valid_czn(*lcz, *lczn);
-                     
-        if (PPis_here[ppos]) {
-            new_lua_cz(ZF_SYSTEM_OBJZONE, lcz, lczn, zn, cx, cy, 32, 32, 0, 0);
+            
+        if (gd.mouse_mode == 0) {  
+            if (PPis_here[ppos]) {
+                new_lua_cz(ZF_SYSTEM_OBJZONE, lcz, lczn, zn, cx, cy, 32, 32, 0, 0);
+            }
         }
         
         draw_i_pl_ex(1, sbmp->b, gd.party[ppos]-1, xx, yy, zn, 0);
@@ -2278,7 +2282,9 @@ int expl_objzone(lua_State *LUA) {
         if (zn < 0)
             zn = find_valid_czn(*lcz, *lczn);
         
-        new_lua_cz(0, lcz, lczn, zn, cx, cy, 32, 32, inst, 0);
+        if (gd.mouse_mode == 0) {  
+            new_lua_cz(0, lcz, lczn, zn, cx, cy, 32, 32, inst, 0);
+        }
     
         if (zn < p_inst->inside_n) {
             unsigned int i_n = p_inst->inside[zn];
@@ -2345,18 +2351,22 @@ int expl_msgzone(lua_State *LUA) {
         i_sysmsg = i_objmsg;
         i_objmsg = 0;
     }
+    
+    if (gd.mouse_mode != 0) {
+        RETURN(0);
+    }
 
     found = find_targeted_csr(sbmp, xx, yy, &lcz, &lczn, &cx, &cy);
       
     if (!found) {
-        if (sbmp == gfxctl.subrend) {
+        if (sbmp == gfxctl.subrend || (gfxctl.subrend_targ && (sbmp == *gfxctl.subrend_targ))) {
             lcz = &lua_cz;
             lczn = &lua_cz_n;
             cx = xx + gd.vxo + gii.srx;
             cy = yy + gd.vyo + gd.vyo_off + gii.sry;
         } else if (sbmp == gfxctl.tmp_virtual_screen) {
-            lcz = &lua_cz;
-            lczn = &lua_cz_n;
+            lcz = &lua_vscr_cz;
+            lczn = &lua_vscr_cz_n;
             cx = xx + gd.vxo;
             cy = yy + gd.vyo + gd.vyo_off;         
         } else {
@@ -3149,7 +3159,7 @@ int expl_get_idle(lua_State *LUA) {
     who = luaint(LUA, -1, funcnames[DSB_GET_IDLE], 1);
     validate_ppos(who);
     
-    lua_pushinteger(LUA, gd.idle_t[who]);
+    lua_pushinteger(LUA, (gd.idle_t[who] & 0xFFF));
     
     RETURN(1);
 }
@@ -3225,9 +3235,10 @@ int expl_set_idle(lua_State *LUA) {
     t = luaint(LUA, -1, funcnames[DSB_SET_IDLE], 2);
     
     validate_ppos(who);
-    if (t < 0 || t > 2000) t = 0;
+    if (t < 0) t = 0;
+    else if (t > 4095) t = 4095;
     
-    gd.idle_t[who] = t;
+    gd.idle_t[who] = t | IDLE_INITIAL_TICK;
     
     RETURN(0);
 }
@@ -3360,6 +3371,10 @@ int expl_write(lua_State *LUA) {
     textmsg = luastring(LUA, -1 + b, funcnames[DSB_WRITE], 2);
     
     pushtxt_cons_bmp(textmsg, in_color, in_bmp, i_ttl);
+    
+    if (1 || debug)
+        fprintf(errorlog, "dsb_write: %s\n", textmsg);
+    
     RETURN(0);    
 }
 
@@ -4581,8 +4596,15 @@ int expl_fullscreen(lua_State *LUA) {
             fsd->fs_fademode = boollookup("fade", 0);
             
             bkg_draw = boollookup("game_draw", 0);
-            if (bkg_draw)
+            if (bkg_draw) {
                 fsd->fs_bflags |= FS_B_DRAW_GAME;
+                
+                if (boollookup("keep_viewmode", 0)) {
+                    if (viewstate == VIEWSTATE_INVENTORY || viewstate == VIEWSTATE_CHAMPION) {
+                        fsd->fs_bflags |= FS_B_INVENTORY;
+                    }   
+                }
+            }
             
             lua_pop(LUA, 1);    
         } else {
@@ -5220,6 +5242,7 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_export);
     NEWL(expl_replace_method);
     NEWL(expl_linesplit);
+    NEWL(expl_highrune);
     NEWL(expl_get_gameflag);
     NEWL(expl_set_gameflag);
     NEWL(expl_clear_gameflag);

@@ -178,7 +178,7 @@ enum {
 struct graphics_control {
     unsigned char do_subrend;
     unsigned char UNUSED_subrend_bkg; // draw background as a subrenderer, maybe?
-    unsigned char XX3;
+    unsigned char reassert_sys_subrend;
     unsigned char subrend_targ_init;
     
     int UNUSED_v[2];
@@ -239,6 +239,16 @@ struct graphics_control {
     unsigned int shade[MAX_SHOTYPES][MAX_SHDIRS][3];
     
     int doorinfo[MAX_DOORINFO][3];
+};
+
+struct sound_control {
+    char geometry_dirty;
+    char geometry_in_use;
+    char __UNUSED_3;
+    char __UNUSED_4;
+    
+    int soundfade;
+    int wall_occ;
 };
 
 struct arch_shadectl {
@@ -316,7 +326,7 @@ struct global_data {
     unsigned short ini_options;
     unsigned short engine_flags;
     
-    unsigned short soundfade;
+    unsigned short UNUSED_soundfade;
     unsigned char gfxpathtable;
     unsigned char sndpathtable;
     
@@ -448,7 +458,8 @@ struct global_data {
     unsigned char gui_next_mode;
     char gui_v4;
     
-    char *barname[3];
+    // the renderer is now on the lua side, this is deprecated
+    char *UNUSED_barname[3];
     
     unsigned short lastmethod[4][3];
     
@@ -552,7 +563,8 @@ struct global_data {
     
     unsigned char UNUSEDR3[18][6];
 
-    unsigned char UNUSEDCHAR50[50];
+    char locale[2];
+    unsigned char UNUSEDCHAR50[48];
     
     struct att_method *c_method[ATTACK_METHOD_TABLESIZE];
 };
@@ -572,8 +584,8 @@ struct global_data {
 #define DSB_LUA_SOUND 64
 
 #define MAJOR_VERSION 0
-#define MINOR_VERSION 74
-//#define SUB_VERSION 'C'
+#define MINOR_VERSION 76
+//#define SUB_VERSION 'D'
 
 enum {
     HIDEMOUSEMODE_SHOW = 0,

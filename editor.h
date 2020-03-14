@@ -1,3 +1,7 @@
+#ifndef ESB
+#define ESB     0x0E5B
+#endif
+
 #define ESBF_STATICFILL     -256
 
 #define XW_NO_CLICKS    256

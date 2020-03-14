@@ -10,7 +10,7 @@ Libs=
 PrivateResource=ESB_private.rc
 ResourceIncludes=
 MakeIncludes=
-Compiler=
+Compiler=-DESB="esb"_@@_
 CppCompiler=
 Linker=-lalleg_@@_C:/MinGW/lib/lua5.1.lib_@@_C:/MinGW/lib/libfmodex.a_@@_C:/MinGW/lib/libcomctl32.a_@@_C:/MinGW/lib/libole32.a_@@_
 IsCpp=0

@@ -13,6 +13,7 @@
 #include "istack.h"
 #include "mparty.h"
 #include "render.h"
+#include "localtext.h"
 
 int viewstate = 0;
 
@@ -22,11 +23,13 @@ extern volatile unsigned int updateok;
 extern int debug;
 extern struct global_data gd;
 extern struct graphics_control gfxctl;
+extern struct sound_control sndctl;
 extern BITMAP *scr_pages[3];
 extern BITMAP *soft_buffer;
 extern BITMAP *FORCE_RENDER_TARGET;
 extern struct dungeon_level *dun;
 extern struct movequeue *mq;
+extern struct system_locstr syslocstr;
 
 extern struct timer_event *te;
 extern struct timer_event *new_te;
@@ -595,8 +598,11 @@ int DSBgameloop(int new_game) {
                 v_onstack("gameloop.process_tick");
                 gd.tickclock = 0;
                 gd.process_tick_mode = process_tick;
-                
+                                
                 purge_dirty_list();
+                
+                if (sndctl.geometry_dirty)
+                    setup_level_sound_geometry(gd.p_lev[gd.a_party]);
                 
                 set_3d_soundcoords();
                 renderer_fixes(viewstate);
@@ -614,7 +620,7 @@ int DSBgameloop(int new_game) {
                     if (gd.forbid_move_timer > 0)
                         --gd.forbid_move_timer;
                 }
-                   
+                           
                 run_timers(te, &te, TE_FULLMODE);
                 run_timers(a_te, &a_te, TE_RUNMODE);
                 append_new_queue_te(te, new_te); 
@@ -703,8 +709,11 @@ int DSBgameloop(int new_game) {
 
                 if (gd.mouse_mode >= MM_EYELOOK)
                     gfxctl.do_subrend = 1;
-                    
-                gd.mouse_mode = 0;
+                
+                if (gd.mouse_mode != 0) { 
+                    clear_lua_cz();
+                    gd.mouse_mode = 0;
+                }
             }
         }
         
@@ -778,8 +787,8 @@ int DSBgameloop(int new_game) {
 
                 setup_background(sct, 0);
                 idr = draw_champions(softmode, sct, -1);
-                textout_centre_ex(sct, font, "GAME FROZEN", vxo+224, tvyo+208, gd.sys_col, -1);
-                textout_centre_ex(sct, font, "PRESS ENTER FOR DSB MENU", vxo+224, tvyo+236, gd.sys_col, -1);
+                textout_centre_ex(sct, font, syslocstr.gamefrozen, vxo+224, tvyo+208, gd.sys_col, -1);
+                textout_centre_ex(sct, font, syslocstr.dsbmenu, vxo+224, tvyo+236, gd.sys_col, -1);
 
             } else if (viewstate == VIEWSTATE_GUI) {
                 do_gui_options(softmode);

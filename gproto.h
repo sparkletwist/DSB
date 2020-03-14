@@ -139,8 +139,8 @@ void set_dsb_fixed_alpha_blender(int alphafix);
 void draw_inv_statsbox(BITMAP *scx, int px, int py, int pt);
 void draw_obj_infobox(BITMAP *scx, int px, int py, int pt);
 
-void draw_eye_border(BITMAP *scx, struct champion *w, int xt, int yt);
-void draw_mouth_border(BITMAP *scx, struct champion *w, int xt, int yt);
+void draw_eye_border(BITMAP *scx, struct champion *w, int xt, int yt, int em_cf);
+void draw_mouth_border(BITMAP *scx, struct champion *w, int xt, int yt, int em_cf);
 
 void draw_guy_icons(BITMAP *scx, int px, int py, int fd);
 void draw_spell_interface(BITMAP *scx, int i_index, int vs);

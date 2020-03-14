@@ -545,6 +545,8 @@ function __sconvert(i, cte)
 		return "\"" .. tostring(cte) .. "\""
 	elseif (type(cte) == "function") then
 		return "0"
+	elseif (type(cte) == "number") then
+		return tostring(math.floor(cte))
 	else
 		return tostring(cte)
 	end
@@ -2248,4 +2250,16 @@ function __rebuild_exported_characters(p1, p2, p3, p4)
 			__NEW_CHAMPIONS[pp] = newguy		
 		end
 	end
+end
+
+function dsb_locstr(k, defval)
+	if (type(k) ~= "string") then return "" end
+	if (not _LOCAL_STRINGS) then return "" end
+	local lstr = _LOCAL_STRINGS[k]
+	
+	if (not lstr or type(lstr) ~= "string") then
+		if (defval) then return defval end
+		return "?" .. k
+	end
+	return lstr
 end

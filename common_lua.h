@@ -197,6 +197,7 @@ enum {
     DSB_EXPORT,
     DSB_REPLACE_METHODS,
     DSB_LINESPLIT,
+    DSB_HIGHRUNE,
     DSB_GET_GAMEFLAG,
     DSB_SET_GAMEFLAG,
     DSB_CLEAR_GAMEFLAG,
@@ -349,3 +350,5 @@ int expl_get_xp(lua_State *LUA);
 int expl_set_xp(lua_State *LUA);
 
 int expl_tileptr_rotate(lua_State *LUA);
+
+int expl_highrune(lua_State *LUA);

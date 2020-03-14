@@ -55,7 +55,8 @@ void party_enter_level(int ap, int lev) {
 
 void party_viewto_level(int lev) {
     onstack("party_viewto_level");
-
+    
+    setup_level_sound_geometry(lev);
     lc_parm_int("sys_viewto_level", 1, lev);
     import_shading_info();
     import_door_draw_info();

@@ -53,6 +53,9 @@ struct clickzone cz[NUM_ZONES];
 int lua_cz_n;
 struct clickzone *lua_cz;
 
+int lua_vscr_cz_n;
+struct clickzone *lua_vscr_cz;
+
 void set_mouse_override(struct animap *override_image) {
     onstack("set_mouse_override");
     
@@ -250,6 +253,9 @@ void init_subrend_targ(const char *name, struct animap **subrend_ptr) {
     gfxctl.subrend_targ = subrend_ptr;
     gfxctl.subrend_targ_init = 1;
     
+    clear_lua_cz();
+    gfxctl.reassert_sys_subrend = 0;
+    
     VOIDRETURN();   
 }
 
@@ -278,9 +284,11 @@ void setup_misc_inv(BITMAP *scx, int bx, int by, int pt) {
         int barlen;
         int fc, cc;
         
-        if (pt)
+        if (pt || gfxctl.reassert_sys_subrend)
             destroy_system_subrenderers();
         
+        // this is NULL after the call to destroy_system_subrenderers,
+        // which only happens when the tick is being processed
         if (gfxctl.food_water == NULL) {
             init_subrend_targ("food_water", &(gfxctl.food_water));
             lc_parm_int("sys_render_mainsub", 1, pcidx + 1);
@@ -1096,20 +1104,13 @@ void draw_bordered_box(BITMAP *scx, int xt, int yt, int border) {
     }
 }
 
-void draw_eye_border(BITMAP *scx, struct champion *w, int xt, int yt) {
+void draw_eye_border(BITMAP *scx, struct champion *w, int xt, int yt, int condflags) {
     int border = 0;
     int sc;
     
-    for(sc=0;sc<6;++sc) {
-        if (w->stat[sc]/10 < w->maxstat[sc]/10) {
-            border = 1;
-            break;
-        } else if ((w->stat[sc]/10 > w->maxstat[sc]/10) && !border) {
-            border = 2; 
-        }  
-    }
-    
-    if (!border) {
+    if (condflags & COND_EYE_RED)
+        border = 1;
+    else {
         int cc;
         
         for(cc=0;cc<gd.num_conds;++cc) {
@@ -1124,14 +1125,17 @@ void draw_eye_border(BITMAP *scx, struct champion *w, int xt, int yt) {
         }
     }
     
+    if ((border == 0) && (condflags & COND_EYE_GREEN))
+        border = 2;
+    
     draw_bordered_box(scx, xt, yt, border);
 }
 
-void draw_mouth_border(BITMAP *scx, struct champion *w, int xt, int yt) {
+void draw_mouth_border(BITMAP *scx, struct champion *w, int xt, int yt, int condflags) {
     int draw = 0;
     int cc;
     
-    if (w->food < 512 || w->water < 512)
+    if (condflags & COND_MOUTH_RED)
         draw = 1;
     else {
         for(cc=0;cc<gd.num_conds;++cc) {
@@ -1145,6 +1149,9 @@ void draw_mouth_border(BITMAP *scx, struct champion *w, int xt, int yt) {
             }    
         }
     }
+    
+    if ((draw == 0) && (condflags & COND_MOUTH_GREEN))
+        draw = 2;
     
     draw_bordered_box(scx, xt, yt, draw);
 }

@@ -17,7 +17,9 @@
 static FMOD_SOUND *interface_click_sound;
 
 FMOD_SYSTEM *f_system;
+FMOD_GEOMETRY *f_geo;
 
+extern int debug;
 extern FILE *errorlog;
 extern struct global_data gd;
 extern struct dungeon_level *dun;
@@ -26,6 +28,18 @@ extern const char *DSB_MasterSoundTable;
 
 struct channel_list fchans;
 extern lua_State *LUA;
+
+struct sound_control sndctl;
+
+void default_sndctl_values(void) {
+    memset(&sndctl, 0, sizeof(struct sound_control));
+    
+    sndctl.geometry_in_use = 1;
+    sndctl.soundfade = 240;
+    sndctl.wall_occ = 40;
+    
+    sndctl.geometry_dirty = 0;
+}
 
 void fmod_errcheck(FMOD_RESULT result) {
     if (result != FMOD_OK) {
@@ -563,18 +577,25 @@ FMOD_SOUND *soundload(const char *sname, const char *longname,
     RETURN(NULL);
 }
 
-void sound_3d_settings(int atten) {
+void sound_3d_settings(int soundfade) {
     FMOD_RESULT result;
     
     onstack("sound_3d_settings");
     
     double f_atten;
-    f_atten = (double)atten / 100.0;
+    f_atten = (double)soundfade / 240.0;
     
     result = FMOD_System_Set3DSettings(f_system, 1.0, 0.5, f_atten);
     fmod_errcheck(result);
     
     VOIDRETURN();
+}
+
+void new_f_geo(void) {
+    FMOD_RESULT result;
+    
+    result = FMOD_System_CreateGeometry(f_system, MAX_SOUND_POLYGON, MAX_SOUND_POLYGON*4, &f_geo);
+    fmod_errcheck(result);   
 }
 
 void fsound_init(void) {
@@ -590,20 +611,26 @@ void fsound_init(void) {
     result = FMOD_System_Init(f_system, MAX_VOICES,
         FMOD_INIT_3D_RIGHTHANDED, NULL);
     fmod_errcheck(result);
+
+    result = FMOD_System_SetGeometrySettings(f_system, 256);
+    fmod_errcheck(result);
     
-    sound_3d_settings(gd.soundfade);
+    new_f_geo();
+    
+    default_sndctl_values();
+    sound_3d_settings(sndctl.soundfade);
     
     VOIDRETURN();
 }
 
-void coord2vector(FMOD_VECTOR *fv, int lev, int x, int y) {
+void coord2vector(FMOD_VECTOR *fv, int lev, int x, int y, float x_offset, float y_offset, float vert_offset) {
     struct dungeon_level *dd;
     
     dd = &(dun[lev]);
 
-    fv->x = x;
-    fv->y = 1000*lev;
-    fv->z = dd->ysiz - y;
+    fv->x = (float)x + x_offset;
+    fv->y = 1000*lev + vert_offset;
+    fv->z = (float)(dd->ysiz - y) - y_offset;
 }    
 
 void set_3d_soundcoords(void) {
@@ -616,7 +643,7 @@ void set_3d_soundcoords(void) {
     onstack("set_3d_soundcoords");
     
     memset(&my_v, 0, sizeof(FMOD_VECTOR));
-    coord2vector(&my_v, gd.p_lev[ap], gd.p_x[ap], gd.p_y[ap]);
+    coord2vector(&my_v, gd.p_lev[ap], gd.p_x[ap], gd.p_y[ap], 0.5f, 0.5f, 0.0f);
     
     face2delta(gd.p_face[ap], &dx, &dy);
     forward_v.x = (float)dx;
@@ -640,10 +667,12 @@ int play_3dsound(FMOD_SOUND *fs, const char *id, int lev, int xx, int yy, int lo
     onstack("play_3dsound");
     
     memset(&my_v, 0, sizeof(FMOD_VECTOR));
-    coord2vector(&my_v, lev, xx, yy);
+    coord2vector(&my_v, lev, xx, yy, 0.5f, 0.5f, 0.0f);
     
     if (loop)
         lflag = FMOD_LOOP_NORMAL;
+        
+    FMOD_Sound_Set3DMinMaxDistance(fs, 1.52f, 10000.0f);
     
     result = FMOD_System_PlaySound(f_system, FMOD_CHANNEL_FREE, fs, TRUE, &channel); 
     fmod_errcheck(result);
@@ -955,5 +984,104 @@ void current_music_ended(int music_chan) {
     }
     
     VOIDRETURN();
+}
+
+int setup_level_sound_geometry(int lev) {
+    int total_sound_poly = 2;
+    FMOD_RESULT result;
+    float wallocc;
+    int x, y;
+    FMOD_VECTOR objverts[4];
+    FMOD_VECTOR topverts[4];
+    FMOD_VECTOR bottomverts[4];
+    struct dungeon_level *dd;
+    int pidx, pnum;
+    
+    dd = &(dun[lev]);
+    
+    if (f_geo != NULL)
+        FMOD_Geometry_Release(f_geo);
+        
+    if (!sndctl.geometry_in_use) {
+        f_geo = NULL;
+    } else {
+        new_f_geo();
+        
+        wallocc = (float)sndctl.wall_occ / 100.0f;
+        
+        coord2vector(&(topverts[0]), lev, 0, 0, 0.0f, 0.0f, -20.0f);
+        coord2vector(&(topverts[1]), lev, dd->xsiz, 0, 0.0f, 0.0f, -20.0f);
+        coord2vector(&(topverts[2]), lev, dd->xsiz, dd->ysiz, 0.0f, 0.0f, -20.0f);
+        coord2vector(&(topverts[3]), lev, 0, dd->ysiz, 0.0f, 0.0f, -20.0f);
+        
+        coord2vector(&(bottomverts[0]), lev, 0, 0, 0.0f, 0.0f, 20.0f);
+        coord2vector(&(bottomverts[1]), lev, dd->xsiz, 0, 0.0f, 0.0f, 20.0f);
+        coord2vector(&(bottomverts[2]), lev, dd->xsiz, dd->ysiz, 0.0f, 0.0f, 20.0f);
+        coord2vector(&(bottomverts[3]), lev, 0, dd->ysiz, 0.0f, 0.0f, 20.0f);
+        
+        FMOD_Geometry_AddPolygon(f_geo, 1.0f, 1.0f, 1, 4, topverts, &pidx);
+        FMOD_Geometry_AddPolygon(f_geo, 1.0f, 1.0f, 1, 4, bottomverts, &pidx);
+        
+        for (y=0;y<dd->ysiz;y++) {
+            for (x=0;x<dd->xsiz;x++) {
+                int d;    
+                if (dd->t[y][x].w & 1) {
+                    for(d=0;d<4;d++) {
+                        int ix, iy;
+                        face2delta(d, &ix, &iy);
+                    
+                        if (y+iy >= 0 && y+iy < dd->ysiz) {
+                            if (x+ix >= 0 && x+ix < dd->xsiz) {
+                                     
+                                // do this better
+                                if (d == 0) {
+                                    coord2vector(&(objverts[0]), lev, x, y, 0.0f, 0.0f, -10.0f);
+                                    coord2vector(&(objverts[1]), lev, x, y, 1.0f, 0.0f, -10.0f);
+                                    coord2vector(&(objverts[2]), lev, x, y, 1.0f, 0.0f, 10.0f);
+                                    coord2vector(&(objverts[3]), lev, x, y, 0.0f, 0.0f, 10.0f);
+                                } else if (d == 1) {
+                                    coord2vector(&(objverts[0]), lev, x, y, 1.0f, 0.0f, -10.0f);
+                                    coord2vector(&(objverts[1]), lev, x, y, 1.0f, 1.0f, -10.0f);
+                                    coord2vector(&(objverts[2]), lev, x, y, 1.0f, 1.0f, 10.0f);
+                                    coord2vector(&(objverts[3]), lev, x, y, 1.0f, 0.0f, 10.0f);
+                                } else if (d == 2) {
+                                    coord2vector(&(objverts[0]), lev, x, y, 1.0f, 1.0f, -10.0f);
+                                    coord2vector(&(objverts[1]), lev, x, y, 0.0f, 1.0f, -10.0f);
+                                    coord2vector(&(objverts[2]), lev, x, y, 0.0f, 1.0f, 10.0f);
+                                    coord2vector(&(objverts[3]), lev, x, y, 1.0f, 1.0f, 10.0f);
+                                } else if (d == 3) {
+                                    coord2vector(&(objverts[0]), lev, x, y, 0.0f, 1.0f, -10.0f);
+                                    coord2vector(&(objverts[1]), lev, x, y, 0.0f, 0.0f, -10.0f);
+                                    coord2vector(&(objverts[2]), lev, x, y, 0.0f, 0.0f, 10.0f);
+                                    coord2vector(&(objverts[3]), lev, x, y, 0.0f, 1.0f, 10.0f);
+                                }
+                                
+                                FMOD_Geometry_AddPolygon(f_geo, wallocc, wallocc, 1, 4, objverts, &pidx); 
+                                
+                                total_sound_poly++;
+                                
+                                if (total_sound_poly >= MAX_SOUND_POLYGON) {
+                                    poop_out("Excessive sound polygons created");
+                                }
+                                
+                            }   
+                        }
+                    }
+                }
+            }
+        }
+        
+        result = FMOD_Geometry_SetActive(f_geo, 1);
+        fmod_errcheck(result);
+        
+        if (debug) {
+            FMOD_Geometry_GetNumPolygons(f_geo, &pnum);
+            fprintf(errorlog, "SOUND GEOMETRY ACTIVE: %d polygons\n", pnum);
+        }
+    } 
+       
+    sndctl.geometry_dirty = 0;
+    
+    return 0;
 }
 

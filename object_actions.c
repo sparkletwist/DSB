@@ -107,7 +107,6 @@ void inv_instmd_queue(int op, int lev, int xx, int yy, int dir,
 void instmd_queue_flush_loop(struct obj_aff **p_oaq, 
     struct obj_aff **p_oaq_end, int Queue_Max)
 {
-    int instant_launch = 0;
     int queueruns = 0;
     struct obj_aff *oaq = *p_oaq;
     
@@ -172,7 +171,7 @@ void instmd_queue_flush_loop(struct obj_aff **p_oaq,
                     if (p_inst->level != LOC_LIMBO)
                         limbo_instance(oaq->inst);
                     exec_flyinst(oaq->inst, p_inst, oaq->dir,
-                        oaq->fdist, oaq->dpower, oaq->data, oaq->lev, instant_launch);
+                        oaq->fdist, oaq->dpower, oaq->data, oaq->lev);
                 }
             break;
             
@@ -1026,13 +1025,12 @@ int party_objblock(int ap, int lev, int x, int y) {
 }
 
 void exec_flyinst(unsigned int inst, struct inst *p_inst,
-    int travdir, int flydist, int damagepower, short delta, short ddelta, int instant)
+    int travdir, int flydist, int damagepower, short delta, short ddelta)
 {
     onstack("exec_flyinst");
     
     struct obj_arch *p_arch;
     unsigned int flyreps;
-    int v=1;
     
     p_arch = Arch(p_inst->arch);
     flyreps = p_arch->base_flyreps;
@@ -1046,10 +1044,14 @@ void exec_flyinst(unsigned int inst, struct inst *p_inst,
     p_inst->flycontroller = NULL;
     p_inst->gfxflags |= G_LAUNCHED;
 
+    // v is no longer used in the timer info because new timers
+    // go in a separate queue that doesn't begin to run until after
+    // a tick has been processed; this prevents objects from flying
+    // off after one frame if you place them just before a tick
+    /*
     if (gd.tickclock && !instant)
         v++;
-
-    // v is no longer used in the timer info
+    */
     add_timer(inst, EVENT_MOVE_FLYER, 1, 1, delta, ddelta, flyreps);
     
     set_fdelta_to_begin_now(p_inst);
@@ -1061,7 +1063,6 @@ void launch_object(int inst, int lev, int x, int y,
     int travdir, int tilepos, unsigned short flydist, 
     unsigned short damagepower, short delta, short ddelta)
 {
-    int instant_launch = 0;
     struct inst *p_inst;
     
     onstack("launch_object");
@@ -1077,8 +1078,7 @@ void launch_object(int inst, int lev, int x, int y,
         if (p_inst->level != LOC_LIMBO)
             limbo_instance(inst);
             
-        exec_flyinst(inst, p_inst, travdir, flydist, damagepower,
-            delta, ddelta, instant_launch);
+        exec_flyinst(inst, p_inst, travdir, flydist, damagepower, delta, ddelta);
         place_instance(inst, lev, x, y, tilepos, 0);
     }
     

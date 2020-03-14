@@ -7,9 +7,19 @@
 #include "global_data.h"
 #include "defs.h"
 #include "uproto.h"
+#include "sound.h"
 
 int debug = 0;
 int Gmparty_flags = 0;
+
+
+int lua_cz_n;
+struct clickzone *lua_cz;
+int lua_vscr_cz_n;
+struct clickzone *lua_vscr_cz;
+
+// not actually used, but common code looks at it
+struct sound_control sndctl;
 
 // meaningless under ESB
 void destroy_alt_targ(void) { return; }
@@ -83,6 +93,12 @@ void drop_flying_inst(void *p, void *px) {
     return;
 }
 void flush_all_ist(void) {
+    return;
+}
+int setup_level_sound_geometry(int l) {
+    return 0;   
+}
+void import_sound_info(void) {
     return;
 }
 
