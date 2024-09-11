@@ -1,3 +1,4 @@
+-- DSB 0.82
 --BACKWARD COMPAT SECTION
 
 -- deprecated functions that are still used
@@ -119,6 +120,8 @@ function __register_conditions()
 		if (cc.mouth_show) then condflags = condflags + mouth_flag end
 		if (cc.eye_show) then condflags = condflags + eye_flag end
 		
+		if (cc.priority_draw) then condflags = condflags + COND_PRIORITY end
+		
 		if (cc.INTERNAL_ID) then
 			dsb_replace_condition(cc.INTERNAL_ID, condscope, bmp1, bmp2, updaterate, func, condflags)
 		else		
@@ -158,6 +161,7 @@ function __gui_importation()
 		portraits = -2,
 		console = -3,
 		guy_icons = -4,
+		res_rei = -5,
 		methods = 0,
 		magic = 1,
 		movement = 2
@@ -219,7 +223,9 @@ function __gui_importation()
 				
 				if (zid == res_zones.console) then
 				    local conlines = __force_sane(gui_info[i].lines, 4, 1, 16)
+					local conline_height = __force_sane(gui_info[i].lineheight, 14, 1, 9000)
 					__set_internal_gui("console", conlines)
+					__set_internal_gui("lineheight", conline_height)
 					
 				elseif (zid == res_zones.portraits) then
 					local zone_width = __force_sane(gui_info[i].hand_zone_w, 552, 1, 640)
@@ -237,6 +243,11 @@ function __gui_importation()
 					local draw_offset_y = __force_sane(gui_info[i].draw_offset_y, 0, 0, 100)
 					
 					__set_internal_guyiconinfo(icon_width, icon_height, icon_spacing_x, icon_spacing_y, draw_offset_x, draw_offset_y)
+				
+				elseif (zid == res_zones.res_rei) then 
+					local i_act_like_subrend = 0
+					if (gui_info[i].act_like_subrenderer) then i_act_like_subrend = 1 end
+					__set_internal_gui("act_like_subrenderer", i_act_like_subrend)
 				end
 					
 			end
@@ -533,6 +544,13 @@ end
 function __void_exvar(id)
 	if (exvar and exvar[id]) then
 	    exvar[id] = nil
+	end
+end
+
+function __move_exvar(id, newid)
+	if (exvar and exvar[id]) then
+		exvar[newid] = exvar[id]
+		exvar[id] = nil
 	end
 end
 
@@ -1772,6 +1790,12 @@ function __ed_champ_create(id, designation)
 	dsb_add_champion(id, designation, "port_mophus", string.upper(designation), "", 1000, 1000, 1000, 400, 400, 400, 400, 400, 400, 400, 0, 0, 0, 0)
 end
 
+function __ed_bad_exvar_expression_check()
+	local ee = EXVAR_EXPRESSION
+	if (ee == _G or ee == obj or ee == gfx or ee == exvar or ee == ch_exvar) then return true end 
+	return false
+end
+
 function editor_exvar_coordinate_picker(id, lev, x, y)
 	local loc_lev, loc_x, loc_y = dsb_get_coords(id)
 	use_exvar(id)
@@ -2263,3 +2287,50 @@ function dsb_locstr(k, defval)
 	end
 	return lstr
 end
+
+function dsb_objset(id, assert_change, disable, gfxflags, facedir, charge, crop, i_frame)
+	if (type(id) ~= "number" or not dsb_valid_inst(id)) then
+		return
+	end
+	
+	local asserted_gfxflags = 0
+	if (not GF_INACTIVE) then GF_INACTIVE = 2 end
+	
+	if (assert_change) then
+		local isdisabled = dsb_get_gfxflag(id, GF_INACTIVE)
+		if (isdisabled) then asserted_gfxflags = GF_INACTIVE end
+		if (not isdisabled and disable) then
+			dsb_disable(id)	
+			asserted_gfxflags = GF_INACTIVE
+		elseif (isdisabled and not disable) then
+			dsb_enable(id)
+			asserted_gfxflags = 0
+		end
+	else
+		if (disable) then
+			dsb_disable(id)
+			asserted_gfxflags = GF_INACTIVE
+		end
+	end
+	
+	if (type(gfxflags) == "number" and (assert_change or gfxflags ~= 0)) then
+		dsb_rawset_gfxflag(id, gfxflags + asserted_gfxflags)
+	end
+	
+	if (type(facedir) == "number" and (assert_change or facedir ~= 0)) then
+		dsb_set_facedir(id, facedir)
+	end
+
+	if (type(charge) == "number" and (assert_change or charge ~= 0)) then
+		dsb_set_charge(id, charge)
+	end
+	
+	if (type(crop) == "number" and (assert_change or crop ~= 0)) then
+		dsb_set_crop(id, crop)
+	end
+	
+	if (type(i_frame) == "number" and (assert_change or i_frame ~= 0)) then
+		dsb_set_animtimer(id, i_frame)
+	end
+
+end 
