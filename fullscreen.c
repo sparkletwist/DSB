@@ -65,10 +65,7 @@ int fullscreen_mode(struct fullscreen *fsd) {
         
         if (local_updateok) {      
             if (viewstate < VIEWSTATE_FROZEN) {
-                gd.framecounter++;
-                if (gd.framecounter >= FRAMECOUNTER_MAX)
-                    gd.framecounter = 0;
-                    
+                increment_framecounters();
                 tick++;
             }
             

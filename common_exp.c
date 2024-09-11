@@ -112,7 +112,7 @@ void validate_ppos(int xx) {
 }
 
 void validate_dtype(int xx) {
-    if (xx < 0 || xx >= gd.max_dtypes)
+    if (xx < 0 || xx >= gii.max_dtypes)
         DSBLerror(LUA, "Invalid dmgtype %d", xx);
 }
 

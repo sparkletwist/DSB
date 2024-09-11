@@ -14,6 +14,8 @@
 #include "editor_hwndptr.h"
 #include "editor_gui.h"
 #include "editor_menu.h"
+#include "integration.h"
+#include "integration_esb.h"
 
 int CLOCKFREQ = 7;
 
@@ -43,6 +45,8 @@ extern int ws_tbl_len;
 struct editor_global edg;
 extern int debug;
 
+extern unsigned int esb_ipc_msg;
+
 void DSBallegshutdown(void) {
     onstack("DSBallegshutdown");
     allegro_exit();
@@ -59,6 +63,11 @@ LRESULT CALLBACK ESBwproc (HWND hwnd, UINT message,
     
     onstack("ESBwproc");
     ESB_MESSAGE_DEBUG();
+    
+    if (esb_ipc_msg && message == esb_ipc_msg) {
+        dsb_communication(wParam, lParam);
+        RETURN(0); 
+    }
     
     switch (message) {
         case WM_CREATE:
@@ -429,7 +438,9 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
         { FVIRTKEY, 'G', ESBM_MODE_WSG },
         { FVIRTKEY, 'D', ESBM_MODE_DD },
         { FVIRTKEY, 'Y', ESBM_MODE_PRP },
+        { FVIRTKEY, 'C', ESBM_MODE_PRC },
         { FVIRTKEY, 'X', ESBM_MODE_CUT },
+        { FCONTROL | FVIRTKEY, 'D', ESBM_DSBRESET },
         { FCONTROL | FVIRTKEY, 'X', ESBM_MODESWAP_DO_CUT },
         { FCONTROL | FVIRTKEY, 'C', ESBM_MODESWAP_DO_COPY },
         { FCONTROL | FVIRTKEY, 'V', ESBM_MODESWAP_DO_PASTE },
@@ -447,7 +458,7 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     signal(SIGFPE, sigcrash);
 
     init_stack();
-    errorlog = fopen("log.txt", "w");
+    errorlog = fopen("log_esb.txt", "w");
 
     onstack("ESBmain");
 
@@ -498,6 +509,7 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     memset(&wlocc, 0, sizeof(WNDCLASSEX));
     memset(&wtoolc, 0, sizeof(WNDCLASSEX));
     blank_translation_table();
+    ed_clear_integration_structure();
     
     wincl.hInstance = hThisInstance;
     wincl.lpszClassName = ESBClassName;
@@ -620,7 +632,7 @@ int WINAPI WinMain (HINSTANCE hThisInstance,
     edg.haccel = CreateAcceleratorTable(myAccel,
         sizeof(myAccel) / sizeof(ACCEL));
     
-    SetWindowText(edg.infobar, "ESB for DSB 0.76 Ready");
+    SetWindowText(edg.infobar, "ESB for DSB 0.82 Ready");
     ed_resizesubs(sys_hwnd);
     force_redraw(edg.subwin, 1);
     purge_dirty_list();

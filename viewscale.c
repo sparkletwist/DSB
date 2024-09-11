@@ -121,14 +121,21 @@ struct animap *do_dynamic_scale(int vsm, struct obj_arch *p_arch,
     return scalebase->ad->v[sm];
 }
 
-void DSB_aa_scale_blit(int do_it_anyway, BITMAP *source, BITMAP *dest,
+void DSB_aa_scale_blit(int do_it_anyway, int lores_pixels, BITMAP *source, BITMAP *dest,
     int s_x, int s_y, int s_w, int s_h,
     int d_x, int d_y, int d_w, int d_h)
-{
+{    
     if (!do_it_anyway) {
         if (s_w == d_w && s_h == d_h)
             return;
     }
     
-    stretch_blit(source, dest, s_x, s_y, s_w, s_h, d_x, d_y, d_w, d_h);   
+    if (lores_pixels) {
+        BITMAP *lores = create_bitmap(d_w/2, d_h/2);
+        stretch_blit(source, lores, s_x, s_y, s_w, s_h, d_x, d_y, d_w/2, d_h/2);
+        stretch_blit(lores, dest, s_x, s_y, d_w/2, d_h/2, d_x, d_y, d_w, d_h);
+        destroy_bitmap(lores);
+    } else {
+        stretch_blit(source, dest, s_x, s_y, s_w, s_h, d_x, d_y, d_w, d_h);   
+    }
 }

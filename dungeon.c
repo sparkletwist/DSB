@@ -357,6 +357,22 @@ void destroy_all_dungeon_levels() {
     VOIDRETURN();
 }
 
+void clear_guypos(void) {
+    int x, y, ap;
+    
+    for (x=0;x<2;x++) {
+        for (y=0;y<2;y++) {
+            for (ap=0;ap<4;ap++) {
+                gd.guypos[y][x][ap] = 0;           
+            }
+        }
+    }
+    
+    for (x=0;x<4;x++) {
+        gd.g_facing[x] = 0;
+    }
+}
+
 void destroy_dungeon(void) {
     int t;
     
@@ -364,8 +380,12 @@ void destroy_dungeon(void) {
     
     for(t=0;t<gd.num_champs;++t)
         destroy_champion(t);
+    
     for (t=0;t<4;++t)
         gd.party[t] = 0;
+        
+    clear_guypos();
+        
     gd.leader = -1;
     gd.offering_ppos = -1;
     
@@ -425,6 +445,7 @@ void destroy_dungeon(void) {
             inst_destroy(t, 2);
         }   
     }
+    destroy_all_exvars();
     gd.last_alloc = 0;
     memset(oinst, 0, sizeof(struct inst*)*NUM_INST);
     v_upstack();

@@ -21,6 +21,8 @@
 #include "editor_shared.h"
 #include "editor_menu.h"
 #include "editor_clipboard.h"
+#include "integration.h"
+#include "integration_esb.h"
 
 HTREEITEM global_ws_treenode;
 
@@ -172,10 +174,11 @@ int editor_create_new_gamedir() {
     fclose(fp);
     
     editor_load_dungeon(dname);
-    dsbfree(new_dprefix);
-    
+        
     dsbfree(edg.valid_savename);
     edg.valid_savename = dsbstrdup(dname);
+    
+    dsbfree(new_dprefix);
     
     RETURN(1);
 }
@@ -275,6 +278,12 @@ int editor_load_dungeon(char *fname) {
     edg.last_inst = 0;
     edg.global_mark_level = -1;
     
+    // copy current position
+    gd.p_lev[1] = gd.p_lev[0];
+    gd.p_x[1] = gd.p_x[0];
+    gd.p_y[1] = gd.p_y[0];
+    gd.p_face[1] = gd.p_face[0];
+    
     luastacksize(2);
     lua_getglobal(LUA, "EDITOR_FLAGS"); 
     if (lua_isnumber(LUA, -1)) {
@@ -327,6 +336,7 @@ void ed_get_drawnumber(struct obj_arch *p_arch, int dir, int inact, int cell,
 }
 
 int ed_obj_add(const char *arch_name, int level, int x, int y, int dir) {
+    int integration = 0;
     const char *cs_edr = "editor_spawn";
     int rv = 0;
 
@@ -334,6 +344,11 @@ int ed_obj_add(const char *arch_name, int level, int x, int y, int dir) {
     
     luastacksize(6);
     purge_dirty_list();
+    
+    if (dsb_is_running()) {
+        gd.integration_action++;
+        integration = 1;
+    }
     
     lua_getglobal(LUA, cs_edr);
     lua_pushstring(LUA, arch_name);
@@ -351,6 +366,12 @@ int ed_obj_add(const char *arch_name, int level, int x, int y, int dir) {
         RETURN(0);
     }    
     lua_pop(LUA, 1);
+    
+    if (integration) {
+        integration_update_obj_parameters((unsigned int)rv, 0);
+        integration_send_exvars_to_dsb((unsigned int)rv); 
+        gd.integration_action--;
+    }
     
     RETURN(rv);
 }
@@ -518,6 +539,9 @@ void update_draw_mode(HWND ehwnd) {
     else if (i_drmode == DRM_PARTYSTART)
         cs_txstr = "Choose Party Start Position";
         
+    else if (i_drmode == DRM_PARTYCURRENT)
+        cs_txstr = "Choose Current Position (for DSB testing)";
+        
     else if (i_drmode == DRM_CUTPASTE)
         cs_txstr = "Cut and Paste Mode";
         
@@ -563,7 +587,7 @@ void SetD(unsigned char dmode, char *s_etext, char *s_wtext) {
     edg.draw_mode = dmode;
     if (dmode != DRM_CUTPASTE)
         deselect_edit_clipboard();
-    if (dmode == DRM_PARTYSTART) {
+    if (dmode == DRM_PARTYSTART || dmode == DRM_PARTYCURRENT) {
         if (edg.d_dir > 3) {
             edg.d_dir = 0;
             edg.f_d_dir = -1;

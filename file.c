@@ -21,6 +21,8 @@
 #include "arch.h"
 #include "gamelock.h"
 #include "mparty.h"
+#include "integration.h"
+#include "integration_dsb.h"
 
 #define MINVER_HAVE_TINTSAVED       38
 #define MINVER_LONG_CHARGE          41
@@ -29,6 +31,7 @@
 #define MINVER_COND_ANIMTIMER       55
 #define MINVER_INST_PREV            59
 #define MINVER_CHAIN_REPS           60
+#define MINVER_16_FRAMECOUNTERS     80
 
 const char *CSSAVEFILE[] = { "DSBSAVE1.DSB",
     "DSBSAVE2.DSB", "DSBSAVE3.DSB", "DSBSAVE4.DSB" };
@@ -769,7 +772,7 @@ int load_savefile(const char *filename) {
     rdl(ext_capabs);
         
     rdc(gd.a_tickclock);
-    rdc(cx);
+    rdc(gd.lastattackppos);
     rdc(cx);
     rdc(cx);
     
@@ -1068,6 +1071,18 @@ int load_savefile(const char *filename) {
     rdl(gd.tickclock);
     rdl(gd.framecounter);
     rdl(v);
+    
+    if (filever >= MINVER_16_FRAMECOUNTERS) {
+        for(i=0;i<16;i++) {
+            rdl(gd.g_framecounter[i]);
+        }     
+        gd.framecounter = gd.g_framecounter[0];   
+    } else {
+        gd.g_framecounter[0] = gd.framecounter;
+        for(i=1;i<16;i++) {
+            gd.g_framecounter[1] = 0;
+        }  
+    }
 
     read_current_music_info(pf);
     read_all_sounddata(pf);
@@ -1216,7 +1231,9 @@ int load_savefile(const char *filename) {
         if (filever < MINVER_LONG_CHARGE) {
             rdc(p_inst->charge);
         } else {
-            rdc(p_inst->Unused_char);
+            // not used for anything anymore
+            char zzzz;
+            rdc(zzzz);
         }
         rdc(p_inst->openshot);
         rdc(p_inst->inside_n);
@@ -1379,7 +1396,7 @@ void save_savefile(const char *filename, const char *gamename) {
     wrl(ext_capabs);
     
     wrc(gd.a_tickclock);
-    wrc(0);
+    wrc(gd.lastattackppos); // added in 0.77, used to be 0
     wrc(0);
     wrc(0);
     
@@ -1422,7 +1439,7 @@ void save_savefile(const char *filename, const char *gamename) {
         wrl(shpack(gd.lastmethod[i][0], gd.lastmethod[i][1]));
         wrl(shpack(gd.lastmethod[i][2], 0));
     }
-    
+       
     wrc(gd.max_lvl);
     wrc(gd.max_class);
     wrc(gd.max_UNUSED);
@@ -1582,8 +1599,13 @@ void save_savefile(const char *filename, const char *gamename) {
     wrl(gd.move_lock);
     wrl(gd.updateclock);
     wrl(gd.tickclock);
-    wrl(gd.framecounter);
+    wrl(gd.framecounter); // redundant now
     wrl(0); // don't change this 0!
+    
+    // added as of 0.80
+    for(i=0;i<16;i++) {
+        wrl(gd.g_framecounter[i]);
+    }
     
     write_current_music_info(pf);
     write_all_sounddata(pf);
@@ -1679,8 +1701,7 @@ void save_savefile(const char *filename, const char *gamename) {
         // as of 0.41 charge is a long
         wrl(p_inst->charge);
         
-        W_CHARS(0, p_inst->Unused_char,
-            p_inst->openshot, p_inst->inside_n);
+        W_CHARS(0, 0, p_inst->openshot, p_inst->inside_n);
             
         wrl(p_inst->frame);
             
@@ -1775,6 +1796,10 @@ void load_dungeon(const char *raw_string, const char *compile_string) {
 
     if (gd.compile) loadstr = "compile";
     else loadstr = "load";
+    
+    if (gd.testing_mode == TESTMODE_GAME_RESTART)
+        loadstr = "reload";
+    
     fprintf(errorlog, "DUNGEON: Attempting to %s\n", loadstr);
     fflush(errorlog);
     
@@ -1783,6 +1808,7 @@ void load_dungeon(const char *raw_string, const char *compile_string) {
     compiled_dungeon_filename = lua_tostring(LUA, -1);
 
     if (gd.compile || !load_savefile(compiled_dungeon_filename)) {
+        char dungeon_filename[MAX_PATH];
         char *dungeon_name;
         
         // allocate this, it's normally in the savefile and
@@ -1797,21 +1823,36 @@ void load_dungeon(const char *raw_string, const char *compile_string) {
         }
         
         lua_getglobal(LUA, raw_string);
-        raw_dungeon_filename = dsbstrdup(lua_tostring(LUA, -1));
+        
+        if (gd.testing_mode) {
+            const char *testing_filename = lua_tostring(LUA, -1);
+            if (gd.esb_dpfile) {
+                testing_filename = gd.esb_dpfile;
+            }
+            
+            sprintf(dungeon_filename, "%s%s", testing_filename, ".testing"); 
+            testing_dungeon_filename(dungeon_filename);  
+        } else {
+            sprintf(dungeon_filename, "%s", lua_tostring(LUA, -1)); 
+        }
+        
         lua_pop(LUA, 1);        
         gd.dungeon_loading = 1;
-        src_lua_file(fixname(raw_dungeon_filename), 0);
+        src_lua_file(fixname(dungeon_filename), 0);
         gd.dungeon_loading = 0;
-        dsbfree(raw_dungeon_filename);
 
         if (gd.engine_flags & ENFLAG_SPAWNBURST) {
             poop_out("Error: spawnburst begun but not ended");
         }
-
-        if (gd.compile) {
-            dungeon_name = queryluaglobalstring("dungeon_name");
-            save_savefile(compiled_dungeon_filename, dungeon_name);
-            dsbfree(dungeon_name);
+        
+        if (gd.testing_mode) {
+            DeleteFile(fixname(dungeon_filename));
+        } else {
+            if (gd.compile) {
+                dungeon_name = queryluaglobalstring("dungeon_name");
+                save_savefile(compiled_dungeon_filename, dungeon_name);
+                dsbfree(dungeon_name);
+            }
         }
     }
     lua_pop(LUA, 1);

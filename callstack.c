@@ -38,7 +38,9 @@ void check_inst_int(void) {
 
 void CHECKOUT(int sl) {
     if (sl + 1 != c_STACKLEVEL) {
-        program_puke("Callstack Corruption");
+        char error_corruption[128];
+        sprintf(error_corruption, "Callstack corruption (%d != %d)", sl+1, c_STACKLEVEL);
+        program_puke(error_corruption);
     }
 }
 
@@ -52,8 +54,11 @@ void init_stack() {
     csptr = vstack;
 }
 
+void debug_callstack_pointer() {
+    fprintf(errorlog, "INIT: Callstack pointer is %x\n", vstack);
+}
+
 void v_onstack(const char *on_str) {
-    
     ++c_STACKLEVEL;
     while (*on_str != '\0') {
         *csptr = *on_str;
@@ -65,7 +70,7 @@ void v_onstack(const char *on_str) {
     csptr++;
     
     //check_inst_int();
-    
+        
     if (LIKELY((csptr-vstack) < 3900)) return;
     
     program_puke("Stack Overflow");

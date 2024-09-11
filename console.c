@@ -27,18 +27,21 @@ void init_console(void) {
 void destroy_console(void) {
     int i;
     
+    begin_console_cs();
     for(i=0;i<4;i++) {
         if (cons[i].txt != NULL) {
             dsbfree(cons[i].txt);
         }
     }
     init_console();
+    end_console_cs();
 }
     
 void render_console(BITMAP *scx) {
     const int powerpink = makecol(255, 0, 255);
     int i;
     
+    begin_console_cs();
     for(i=0;i<16;i++) {
         if (cons[i].txt != NULL) {
             if (cons[i].linebmp) {
@@ -69,22 +72,24 @@ void render_console(BITMAP *scx) {
                     }
                 } 
             
-                masked_blit(tdraw_fg_bmp, scx, 0, 0, gfxctl.con_x, gfxctl.con_y+gd.t_ypl*i, 640, h);
+                masked_blit(tdraw_fg_bmp, scx, 0, 0, gfxctl.con_x, gfxctl.con_y+gfxctl.console_lineheight*i, 640, h);
                 
                 destroy_bitmap(tdraw_bkg_bmp);
                 destroy_bitmap(tdraw_fg_bmp);
             } else {
-                textout_ex(scx, font, cons[i].txt, gfxctl.con_x, gfxctl.con_y+gd.t_ypl*i,
+                textout_ex(scx, font, cons[i].txt, gfxctl.con_x, gfxctl.con_y+gfxctl.console_lineheight*i,
                     cons[i].linecol, -1);
             }
             
         }
     }
+    end_console_cs();
 }
 
 void update_console(void) {
     int i;
     
+    begin_console_cs();
     for (i=0;i<16;i++) {
         if (cons[i].txt) {
             --cons[i].ttl;
@@ -95,6 +100,7 @@ void update_console(void) {
             }
         }
     }    
+    end_console_cs();
 }
 
 void console_system_message(const char *textmsg, int in_color) {
@@ -105,14 +111,18 @@ void pushtxt_cons_bmp(const char *textmsg, int in_color, struct animap *bg_col, 
     int i;
     int last = gfxctl.console_lines - 1;
     
+    begin_console_cs();
+    
     if (cons[0].txt)
         dsbfree(cons[0].txt);
     
     for (i=1;i<16;i++)
         memcpy(&(cons[i-1]), &(cons[i]), sizeof(struct c_line));
 
-    cons[last].txt = dsbstrdup(textmsg);
+    cons[last].txt = dsbstrdup_nocallstack(textmsg);
     cons[last].linecol = in_color;
     cons[last].linebmp = bg_col;
-    cons[last].ttl = i_ttl;   
+    cons[last].ttl = i_ttl;  
+    
+    end_console_cs(); 
 }

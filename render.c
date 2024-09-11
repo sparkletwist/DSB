@@ -17,6 +17,9 @@ extern BITMAP *FORCE_RENDER_TARGET;
 extern int (*dsbgetpixel)(BITMAP *, int, int);
 extern void (*dsbputpixel)(BITMAP *, int, int, int);
 
+struct animap *LAST_USED_WALL_AMAP;
+int LAST_USED_NO_FLIP;
+
 // miscoffsets
 #define WD2Y 74
 
@@ -60,7 +63,7 @@ extern void (*dsbputpixel)(BITMAP *, int, int, int);
 
 #define ChooseSet(A,W) cwsa = choosewallset(A,W)
 
-#define draw_i_pl(S,I,L) draw_i_pl_ex(softmode, S,I,0,0,L, 0)
+#define draw_i_pl(S,I,L) draw_i_pl_ex(softmode, 0, S,I,0,0,L, 0)
 
 #define OUTSOFTMODE() {if (softmode) used_softmode = 1; \
     else {upstack();release_bitmap(scx);return(-1);}}
@@ -145,10 +148,11 @@ if (b_iter) { \
 #define TOP_ZONE        0x0100
 #define BOTTOM_ZONE     0x0200
 
-#define FLIPH 1
-#define TWO_DIRECTIONS 2
-#define BACK_VIEW 8
-#define COERCED_VIEW 128
+#define FLIPH               0x01
+#define TWO_DIRECTIONS      0x02
+#define BACK_VIEW           0x08
+#define A_NO_OFFSETS        0x40
+#define COERCED_VIEW        0x80
 
 #define WALLIDX_OVERRIDE    0xFFFFFFFF
 
@@ -474,9 +478,15 @@ int draw_gfxicon_af(BITMAP *scx, struct animap *ani, int mx, int my, int lit,
     BITMAP *s_bmp;
     int des_sub = 0;
     int rv = 0;
+    int debug_disable_alpha = 0;
     
     if (!ani) {
         return(0);
+    }
+    
+    if (alphafix & AF_DEBUG_DISABLE_ALPHA) {
+        alphafix -= AF_DEBUG_DISABLE_ALPHA;
+        debug_disable_alpha = 1;
     }
     
     lod_use(ani);
@@ -549,8 +559,7 @@ int draw_gfxicon_af(BITMAP *scx, struct animap *ani, int mx, int my, int lit,
         } else
             draw_sprite_h_flip(scx, s_bmp, mx, my);
     } else {
-        if (ani->flags & AM_HASALPHA) {
-            
+        if (!debug_disable_alpha && (ani->flags & AM_HASALPHA)) {
             set_dsb_fixed_alpha_blender(alphafix);            
             draw_trans_sprite(scx, s_bmp, mx, my);
             rv = 1;
@@ -565,7 +574,7 @@ int draw_gfxicon_af(BITMAP *scx, struct animap *ani, int mx, int my, int lit,
     return(rv);
 }
 
-int draw_objicon(BITMAP *scx, unsigned int inst, int mx, int my, int lit) {
+int draw_objicon(BITMAP *scx, int afix, unsigned int inst, int mx, int my, int lit) {
     struct inst *p_inst = oinst[inst];
     struct obj_arch *p_arch = Arch(p_inst->arch);
     struct animap *an;
@@ -576,7 +585,7 @@ int draw_objicon(BITMAP *scx, unsigned int inst, int mx, int my, int lit) {
     } else
         an = p_arch->icon;
         
-    r = draw_gfxicon(scx, an, mx, my, lit, p_inst);
+    r = draw_gfxicon_af(scx, an, mx, my, lit, p_inst, afix);
     
     return(r);
 }
@@ -709,7 +718,7 @@ void draw_champname(BITMAP *scx, int cnum, int rchamp, int scale_f, int here) {
 }
 */
 
-int draw_i_pl_ex(int softmode, BITMAP *scx, int pcidx, int mx, int my,
+int draw_i_pl_ex(int softmode, int afix, BITMAP *scx, int pcidx, int mx, int my,
     int o, int makezone)
 {
     struct champion *me;
@@ -742,7 +751,7 @@ int draw_i_pl_ex(int softmode, BITMAP *scx, int pcidx, int mx, int my,
     }
     
     if (islot) {
-        rv = draw_objicon(scx, islot, lx, ly, 0);
+        rv = draw_objicon(scx, afix, islot, lx, ly, 0);
     } else {
         struct animap *img = gii.inv[o].img;
         struct animap *inj_img = gii.inv[o].img_ex;
@@ -750,9 +759,9 @@ int draw_i_pl_ex(int softmode, BITMAP *scx, int pcidx, int mx, int my,
         if (img == NULL) goto MAKETHECZ;
         
         if (inj_img != NULL && me->injury[o]) {
-            rv = draw_gfxicon(scx, inj_img, lx, ly, 0, 0);
+            rv = draw_gfxicon_af(scx, inj_img, lx, ly, 0, 0, afix);
         } else 
-            rv = draw_gfxicon(scx, img, lx, ly, 0, 0);
+            rv = draw_gfxicon_af(scx, img, lx, ly, 0, 0, afix);
     }
     
     MAKETHECZ:
@@ -828,22 +837,27 @@ void draw_individual_conditions(BITMAP *scx, int cn, int a_cn) {
     struct inst fake_obj;
     struct inst *p_fake_obj;
     int cc;
+    int priority;
     
     onstack("draw_individual_conditions");
     
-    for(cc=0;cc<gd.num_conds;++cc) {
-        if (gd.champs[(a_cn-1)].condition[cc] && i_conds[cc].pbmp) {
-            int animtimer = gd.champs[(a_cn-1)].cond_animtimer[cc];
-            
-            p_fake_obj = NULL;
-            if (animtimer != FRAMECOUNTER_NORUN) {
-                memset(&fake_obj, 0, sizeof(struct inst));
-                fake_obj.frame = animtimer;
-                
-                p_fake_obj = &fake_obj;
+    for(priority=0;priority<=1;priority++) {
+        for(cc=0;cc<gd.num_conds;++cc) {
+            if (gd.champs[(a_cn-1)].condition[cc] && i_conds[cc].pbmp) {
+                if (!!(i_conds[cc].flags & COND_PRIORITY) == priority) {
+                    int animtimer = gd.champs[(a_cn-1)].cond_animtimer[cc];
+                    
+                    p_fake_obj = NULL;
+                    if (animtimer != FRAMECOUNTER_NORUN) {
+                        memset(&fake_obj, 0, sizeof(struct inst));
+                        fake_obj.frame = animtimer;
+                        
+                        p_fake_obj = &fake_obj;
+                    }
+                        
+                    draw_gfxicon(scx, i_conds[cc].pbmp, 0, 0, 0, p_fake_obj);
+                }
             }
-                
-            draw_gfxicon(scx, i_conds[cc].pbmp, 0, 0, 0, p_fake_obj);
         }
     }
     
@@ -1266,6 +1280,15 @@ struct animap *get_rend_view(int o_type, struct obj_arch *p_obj_arch,
             }
         }
         
+        if (o_type == OBJTYPE_FLOORITEM || o_type == OBJTYPE_UPRIGHT) {
+            if (flag & SUBWIDTH) {   
+                amap = do_dynamic_scale(sm, p_obj_arch, V_EXTVIEW, bl);
+                
+                if (amap)
+                    *info_flags |= TWO_DIRECTIONS;
+            }            
+        }
+        
         if ((p_obj_arch->rhack & RHACK_STAIRS) && 
             !frontsquarehack)
         {
@@ -1341,9 +1364,13 @@ int wall_animap_blit(int softmode, struct wallset *ws_cur,
         return retval;
     
     lod_use(amap);
+    LAST_USED_WALL_AMAP = amap;
+    LAST_USED_NO_FLIP = no_flip_bmp;
     
-    if (gfr_flag == -1) {
-        tx = (tx+448) - amap->w;
+    if (!(flags & A_NO_OFFSETS)) {
+        if (gfr_flag == -1) {
+            tx = (tx+448) - amap->w;
+        }
     }
         
     if (amap->flags & AM_HASALPHA) {
@@ -1356,7 +1383,7 @@ int wall_animap_blit(int softmode, struct wallset *ws_cur,
     // grab the right frame of the animap
     if (amap->numframes > 1) {
         // ignore the "frame" parameter, it's nonsense most of the time
-        int fcr = (gd.framecounter / amap->framedelay) % amap->numframes;
+        int fcr = (gd.g_framecounter[amap->g_fc_n] / amap->framedelay) % amap->numframes;
         
         sbmp = amap->c_b[fcr];
     } else
@@ -1371,12 +1398,17 @@ int wall_animap_blit(int softmode, struct wallset *ws_cur,
         used_scratch = 1;
     }
     
-    if ((flags & FLIPH) && !no_flip_bmp)
-        xv = tx - amap->xoff;
-    else
-        xv = tx + amap->xoff;
-        
-    yv = ty + amap->yoff;
+    if (flags & A_NO_OFFSETS) {
+        xv = tx;
+        yv = ty;
+    } else {
+        if ((flags & FLIPH) && !no_flip_bmp)
+            xv = tx - amap->xoff;
+        else
+            xv = tx + amap->xoff;
+            
+        yv = ty + amap->yoff;
+    }
         
     if (flags & FLIPH) {
         if (alpha || gd.glowmask) {
@@ -1441,7 +1473,7 @@ int cloud_handler(BITMAP *scx, BITMAP *sub_b, struct inst *p_c_inst,
     if (cpow == 64) {
         blit(sub_b, c_mod_b, 0, 0, 0, 0, sx, sy);
     } else {   
-        DSB_aa_scale_blit(0, sub_b, c_mod_b, 0, 0, sub_b->w, sub_b->h, 0, 0, sx, sy);
+        DSB_aa_scale_blit(0, gd.lores_pixels, sub_b, c_mod_b, 0, 0, sub_b->w, sub_b->h, 0, 0, sx, sy);
     }
 
     mx = rx + xtweak - (sx / 2);
@@ -2059,6 +2091,9 @@ int draw_single_floorthing(struct inst_loc *dt_il,
                 mx -= xhack;
             } else
                 mx += xhack;
+                
+            if (info_flags & TWO_DIRECTIONS)
+                flip_it = 0;
                 
         } else
             mx = rx + xtweak - (sub_b->w/2);
@@ -3433,7 +3468,7 @@ int render_dungeon_view(int softmode, int need_cz) {
        
     // get coords
     if (floor_bitmap->numframes > 1) {
-        gfr = (gd.framecounter / floor_bitmap->framedelay) %
+        gfr = (gd.g_framecounter[floor_bitmap->g_fc_n] / floor_bitmap->framedelay) %
             (floor_bitmap->numframes);
         floor_size = floor_bitmap->c_b[gfr]->h;
     } else
@@ -3954,11 +3989,17 @@ int render_dungeon_view(int softmode, int need_cz) {
         int xcrop_l = 30+(2*aoddeven);
         int xcrop_r = 32+(2*oddeven);
         
+        // DEBUG DRAW WINDOW
+        //gd.gameplay_flags |= GP_WINDOW_ON;
+        
         if (gd.gameplay_flags & GP_WINDOW_ON) {
             struct animap *cwall = cwsa->wall[awall];
             int nwidth, nheight;
             int wsiz = cwsa->window->w;
             int hsiz;
+            int nbx, nby;
+            int x_relocation;
+            int y_relocation;
             BITMAP *wt;
 
             nwidth = cwall->w - (xcrop_l + xcrop_r);
@@ -3976,21 +4017,34 @@ int render_dungeon_view(int softmode, int need_cz) {
 
             wt = create_bitmap(nwidth, nheight);
 
-
             if (cwsa->type == WST_LR_SEP) {
-                ablit(wt, awall, 0, 0, gfr, aoddeven);
+                ablit(wt, awall, 0, 0, gfr, (aoddeven | A_NO_OFFSETS));
             } else {
-                cropblit(wt, awall, 0, 0, gfr, aoddeven,
+                cropblit(wt, awall, 0, 0, gfr, (aoddeven | A_NO_OFFSETS),
                     xcrop_l, xcrop_r, 17+aoddeven);
             }
             
+            x_relocation = (LAST_USED_WALL_AMAP->w - 320) / 2;
+            y_relocation = (nheight - 222) / 2;
             rendczwall(wt, vis[2][1], (fdir+2)%4,
-                160, 54, 0, 0, 101*need_cz);
+                160+x_relocation, 54+y_relocation, 0, 0, 101*need_cz);
             
             draw_gfxicon(wt, cwsa->window, (nwidth/2)-(wsiz/2),
                 (nheight/2)-(hsiz/2), 0, NULL);
+                
+            // relocate the image properly (this is normally done within ablit/cropblit)
+            nbx = bx;
+            nby = by;
+            if (gfr == -1) {
+                nbx = (bx+448) - LAST_USED_WALL_AMAP->w;
+            }
+            if (aoddeven && !LAST_USED_NO_FLIP)
+                nbx = nbx - LAST_USED_WALL_AMAP->xoff;
+            else
+                nbx = nbx + LAST_USED_WALL_AMAP->xoff;
+            nby = nby + LAST_USED_WALL_AMAP->yoff;
             
-            masked_blit(wt, scx, 0, 0, bx+64, by+18, wt->w, wt->h);
+            masked_blit(wt, scx, 0, 0, nbx+64, nby+18, wt->w, wt->h);
             
             destroy_bitmap(wt); 
             
@@ -4270,7 +4324,7 @@ void draw_clickzones(int softmode) {
             cid = makecol(255, 255, 0);
         } else if (i == 11) {
             cid = makecol(255, 127, 0);
-        }
+        } 
         
         if (cz[i].w) {
             rect(scx, cz[i].x, cz[i].y, 
@@ -4308,6 +4362,7 @@ int render_inventory_view(int softmode, int pt) {
     int lbgc;
     int exw, exh;
     int eyemouth_condflags;
+    int subrend_drawn = 0;
 
     onstack("render_inventory_view");
     
@@ -4406,8 +4461,12 @@ int render_inventory_view(int softmode, int pt) {
                 
     if (me->inv[INV_R_HAND] && (pt || gfxctl.do_subrend)) {
         destroy_subrend();
+        
         gd.lua_bool_hack = 1;
+        ++gfxctl.subrend_targ_valid;
         call_member_func(me->inv[0], "subrenderer", LHFALSE);
+        --gfxctl.subrend_targ_valid;
+        
     } else if (!me->inv[INV_R_HAND])
         destroy_subrend();
      
@@ -4424,7 +4483,9 @@ int render_inventory_view(int softmode, int pt) {
         if (zoneobj) {
             destroy_subrend();
             gd.lua_bool_hack = 1;
+            ++gfxctl.subrend_targ_valid;
             call_member_func(zoneobj, "subrenderer", LHTRUE);
+            --gfxctl.subrend_targ_valid;
             
             if (!gfxctl.subrend)
                 draw_obj_infobox(scx, bx+gii.srx, by+gii.sry, pt);
@@ -4434,7 +4495,10 @@ int render_inventory_view(int softmode, int pt) {
         } else
             draw_inv_statsbox(scx, bx+gii.srx, by+gii.sry, pt);
         
-        norend = 1;
+        if (gfxctl.resrei.subrend_mode) {
+            norend = 1;
+        }
+        
     } else {
         if (gii.eye.img)
             draw_gfxicon(scx, gii.eye.img, bx+gii.eye.x, by+gii.eye.y, 0, 0);
@@ -4449,14 +4513,30 @@ int render_inventory_view(int softmode, int pt) {
         draw_mouth_border(scx, me, bx+gii.mouth.x, by+gii.mouth.y, eyemouth_condflags);
     }
                     
-    if (gfxctl.subrend)
+    if (gfxctl.subrend) {
         draw_sprite(scx, gfxctl.subrend->b, bx+gii.srx, by+gii.sry);
-    else {
-        if (gfxctl.i_subrend && !norend) {
-            draw_sprite(scx, gfxctl.i_subrend, bx+gii.srx+6, by+gii.sry);
+        subrend_drawn = 1;
+    }
+    
+    if (gfxctl.i_subrend && !norend && (!subrend_drawn || !gfxctl.resrei.subrend_mode)) {
+            int sbx, sby;
+            
+        if (!gfxctl.resrei.subrend_mode) {
+            draw_inv_statsbox(scx, bx+gii.srx, by+gii.sry, pt);
+        }
+            
+        if (gfxctl.resrei.subrend_mode) {
+            sbx = bx + gii.srx;
+            sby = by + gii.sry;
+        } else {
+            sbx = 0;
+            sby = 0;
+        }
+        
+        draw_sprite(scx, gfxctl.i_subrend, sbx+gfxctl.resrei.x, sby+gfxctl.resrei.y);
 
-            if (gd.gui_mode == GUI_NAME_ENTRY)
-                draw_name_entry(scx);
+        if (gd.gui_mode == GUI_NAME_ENTRY) {
+            draw_name_entry(scx, sbx+gfxctl.resrei.x, sby+gfxctl.resrei.y);
         }
     }
     release_bitmap(scx);

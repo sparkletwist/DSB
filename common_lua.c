@@ -147,6 +147,7 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "dsb_set_gfxflag",
     "dsb_clear_gfxflag",
     "dsb_toggle_gfxflag",
+    "dsb_rawset_gfxflag",
     "dsb_get_mpartyflag",
     "dsb_set_mpartyflag",
     "dsb_clear_mpartyflag",
@@ -163,6 +164,9 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "dsb_subrenderer_target",
     "dsb_dungeon_view",
     "dsb_bitmap_clear",
+    "dsb_bitmap_clear_alpha",
+    "dsb_bitmap_animtimer",
+    "dsb_make_blit_force_alpha",
     "dsb_objzone",
     "dsb_msgzone",
     "dsb_find_arch",
@@ -192,6 +196,7 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "dsb_get_flystate",
     "dsb_set_flystate",
     "dsb_get_sleepstate",
+    "dsb_set_sleepstate",
     "dsb_wakeup",
     "dsb_set_openshot",
     "dsb_get_flydelta",
@@ -228,6 +233,7 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "dsb_update_inventory_info",
     "dsb_update_system",
     "dsb_current_inventory",
+    "dsb_current_champion",
     "dsb_delay_func",
     "dsb_write",
     "dsb_get_bar",
@@ -310,6 +316,10 @@ const char *funcnames[ALL_LUA_FUNCS+1] = {
     "dsb_poll_keyboard",
     "dsb_textconvert_dmstring",
     "dsb_textconvert_numbers",
+    "dsb_get_lookmode",
+    "dsb_get_attackppos",
+    "dsb_set_attackppos",
+    "dsb_lores_scaling",
     "@LASTSTRING"
 };
 
@@ -1244,6 +1254,7 @@ int expl_level_tint(lua_State *LUA) {
 
 int expl_spawnburst_begin(lua_State *LUA) {
     INITVPARMCHECK(0, funcnames[DSB_SPAWNBURST_BEGIN]);
+    
     if (lua_gettop(LUA) == 1 && lua_isnumber(LUA, -1)) {
         gd.last_alloc = lua_tointeger(LUA, -1);
     }   
@@ -1665,6 +1676,21 @@ int expl_set_gfxflag(lua_State *LUA) {
     RETURN(0);   
 }
 
+int expl_rawset_gfxflag(lua_State *LUA) {
+    unsigned int inst, gflag;
+    
+    INITPARMCHECK(2, funcnames[DSB_RAWSET_GFXFLAG]);
+    STARTNONF();
+    inst = luaint(LUA, -2, funcnames[DSB_RAWSET_GFXFLAG], 1);
+    gflag = luaint(LUA, -1, funcnames[DSB_RAWSET_GFXFLAG], 2);  
+    validate_instance(inst);
+    ENDNONF();
+    
+    oinst[inst]->gfxflags = gflag;
+
+    RETURN(0);   
+}
+
 int expl_clear_gfxflag(lua_State *LUA) {
     unsigned int inst, gflag;
     
@@ -1773,13 +1799,19 @@ int expl_set_charge(lua_State *LUA) {
 int expl_get_animtimer(lua_State *LUA) {
     unsigned int inst;
     struct inst *p_inst;
+    struct animap *lbmp;
     
     INITPARMCHECK(1, funcnames[DSB_GET_ANIMTIMER]);
-    inst = luaint(LUA, -1, funcnames[DSB_GET_ANIMTIMER], 1);
-    validate_instance(inst);
-    p_inst = oinst[inst];
+    lbmp = luaoptbitmap(LUA, -1, funcnames[DSB_GET_ANIMTIMER]);
+    if (!lbmp) {
+        inst = luaint(LUA, -1, funcnames[DSB_GET_ANIMTIMER], 1);
+        validate_instance(inst);
+        p_inst = oinst[inst];
+        lua_pushinteger(LUA, p_inst->frame);
+    } else {
+        lua_pushinteger(LUA, gd.g_framecounter[lbmp->g_fc_n]);  
+    }
     
-    lua_pushinteger(LUA, p_inst->frame);
     RETURN(1);
 }
 
@@ -1787,17 +1819,27 @@ int expl_set_animtimer(lua_State *LUA) {
     unsigned int inst;
     unsigned int chval;
     struct inst *p_inst;
+    struct animap *lbmp;
     
     INITPARMCHECK(2, funcnames[DSB_SET_ANIMTIMER]);
-    inst = luaint(LUA, -2, funcnames[DSB_SET_ANIMTIMER], 1);    
+    lbmp = luaoptbitmap(LUA, -2, funcnames[DSB_SET_ANIMTIMER]);
+    if (!lbmp) {
+        inst = luaint(LUA, -2, funcnames[DSB_SET_ANIMTIMER], 1);   
+        validate_instance(inst);
+    } 
     chval = luaint(LUA, -1, funcnames[DSB_SET_ANIMTIMER], 2);
-    validate_instance(inst);
-    
+   
     if (chval >= FRAMECOUNTER_MAX) {
         DSBLerror(LUA, "Bad anim timer value %d", chval);
     } else {
-        p_inst = oinst[inst];
-        p_inst->frame = chval;
+        if (lbmp) {
+            if (lbmp->g_fc_n > 0) {
+                gd.g_framecounter[lbmp->g_fc_n] = chval;
+            }
+        } else {
+            p_inst = oinst[inst];
+            p_inst->frame = chval;
+        }
     }
     
     RETURN(0);
@@ -1877,6 +1919,7 @@ int expl_move(lua_State *LUA) {
     unsigned int inst;
     int lev, xx, yy, dir;
     struct inst *p_inst;
+    struct obj_arch *p_arch;
     int notmoved = 0;
     int oldlev = 0;
    
@@ -1894,6 +1937,7 @@ int expl_move(lua_State *LUA) {
     validate_objcoord(funcnames[DSB_MOVE], lev, xx, yy, dir);
         
     p_inst = oinst[inst];
+    p_arch = Arch(p_inst->arch);
         
     if (lev == LOC_PARTY) {
         xx = gd.party[xx];
@@ -1914,6 +1958,16 @@ int expl_move(lua_State *LUA) {
     
     notmoved = (p_inst->level == lev && p_inst->y == yy && p_inst->x == xx);
     p_inst->gfxflags &= ~(G_UNMOVED);
+    
+    // 0.82: hopefully fix a strange bug with invalid monster bosses
+    // by clearing the boss of a non-boss monster so it can be reset
+    if (!notmoved && p_arch->type == OBJTYPE_MONSTER) {
+        if (lev >= 0) { // teleporter queues use limbo and check the boss
+            if (p_inst->ai->boss != inst) {
+                p_inst->ai->boss = 0;
+            }
+        }  
+    }   
     
     if (gd.watch_inst == inst)
         gd.watch_inst_out_of_position++;
@@ -2051,6 +2105,10 @@ int expl_set_cell(lua_State *LUA) {
         dun[lev].t[yy][xx].w |= 1;
     else
         dun[lev].t[yy][xx].w &= ~(1);
+        
+    if (gd.integration_action) {
+        integration_change_cell(lev, xx, yy, !!cellstate);
+    }
         
     sndctl.geometry_dirty = 1;
     
@@ -2517,4 +2575,21 @@ int expl_tileptr_rotate(lua_State *LUA) {
     RETURN(0);
 }
 
+int expl_get_lookmode(lua_State *LUA) {
+    
+    INITPARMCHECK(0, funcnames[DSB_GET_LOOKMODE]);
+    
+    if (gd.mouse_mode >= MM_EYELOOK) {
+        lua_pushboolean(LUA, 1);
+        lua_pushboolean(LUA, 0);
+    } else if (gd.mouse_mode == MM_MOUTHLOOK) {
+        lua_pushboolean(LUA, 0);
+        lua_pushboolean(LUA, 1);  
+    } else {
+        lua_pushboolean(LUA, 0);
+        lua_pushboolean(LUA, 0);  
+    }
+    
+    RETURN(2);
+}
 

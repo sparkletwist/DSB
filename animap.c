@@ -179,7 +179,6 @@ void get_sysgfx(void) {
     gd.simg.bar_dmg = sysaniload("BAR_DAMAGE", NULL);
     gd.simg.full_dmg = sysaniload("FULL_DAMAGE", NULL);
     */
-    gd.max_dtypes = 3;
     
     // special
     gd.simg.no_use = pcxload("NO_USE", NULL);
@@ -197,14 +196,10 @@ void get_sysgfx(void) {
         gd.simg.guy_icons = NULL;
     }
     
-    testbmp = pcxload("OPTION_RES", NULL);
-    destroy_bitmap(testbmp);
-    testbmp = pcxload("OPTION_REI", NULL);
-    destroy_bitmap(testbmp);
-    testbmp = pcxload("OPTION_RES_REI", NULL);
-    destroy_bitmap(testbmp);
-    testbmp = pcxload("REI_NAMEENTRY", NULL);
-    destroy_bitmap(testbmp);
+    gfxctl.resrei.res = pcxload("OPTION_RES", NULL);
+    gfxctl.resrei.rei = pcxload("OPTION_REI", NULL);
+    gfxctl.resrei.resrei = pcxload("OPTION_RES_REI", NULL);
+    gfxctl.resrei.name = pcxload("REI_NAMEENTRY", NULL);
   
     VOIDRETURN();
 }
@@ -291,7 +286,7 @@ int trapblit(int dmode, BITMAP *scx, int bx, int by, struct dtile *ct,
     
     lod_use(fla);
     if (fla->numframes > 1) {
-        int fcr = (gd.framecounter / fla->framedelay) % fla->numframes;
+        int fcr = (gd.g_framecounter[fla->g_fc_n] / fla->framedelay) % fla->numframes;
         flb = fla->c_b[fcr];
     } else
         flb = fla->b;
@@ -433,7 +428,7 @@ int trapblit(int dmode, BITMAP *scx, int bx, int by, struct dtile *ct,
     
     lod_use(fla);
     if (fla->numframes > 1) {
-        int fcr = (gd.framecounter / fla->framedelay) % fla->numframes;
+        int fcr = (gd.g_framecounter[fla->g_fc_n] / fla->framedelay) % fla->numframes;
         flb = fla->c_b[fcr];
     } else
         flb = fla->b;
@@ -580,7 +575,7 @@ BITMAP *animap_subframe(struct animap *amap, int d) {
     if (amap->numframes <= 1)
         return amap->b;
     
-    cframe = ((gd.framecounter / amap->framedelay) + d) % amap->numframes;
+    cframe = ((gd.g_framecounter[amap->g_fc_n] / amap->framedelay) + d) % amap->numframes;
     return (amap->c_b[cframe]);
 }
 
@@ -588,13 +583,19 @@ BITMAP *animap_subframe(struct animap *amap, int d) {
 // (fz = freeze, which used to be handled here)
 BITMAP *fz_animap_subframe(struct animap *amap, struct inst *p_inst) {
     if (amap) {
-        int cframe;
+        int cframe, fn;
         
         if (amap->numframes <= 1) {
             return amap->b;
         }
         
-        cframe = ((p_inst->frame / amap->framedelay) % amap->numframes);
+        if (amap->g_fc_n > 0) {
+            fn = gd.g_framecounter[amap->g_fc_n];
+        } else {
+            fn = p_inst->frame;
+        }
+        cframe = ((fn / amap->framedelay) % amap->numframes);
+        
         return (amap->c_b[cframe]);  
     } else
         return NULL;
@@ -733,7 +734,7 @@ BITMAP *scalebmp(BITMAP *b, int m, int d, int ym, int yd,
     } else
         rb = create_bitmap(new_w, new_h);
 
-    DSB_aa_scale_blit(0, b, rb, 0, 0, b->w, b->h, 0, 0, new_w, new_h);
+    DSB_aa_scale_blit(0, gd.lores_pixels, b, rb, 0, 0, b->w, b->h, 0, 0, new_w, new_h);
     
     RETURN(rb);
 }
@@ -954,6 +955,26 @@ int bmp_alpha_scan(BITMAP *ibmp) {
     RETURN(!everyzero);
 }
 
+void bmp_alpha_force(BITMAP *ibmp) {
+    int x, y;
+    
+    onstack("bmp_alpha_force");
+       
+    for (y=0;y<ibmp->h;++y) {
+        for (x=0;x<ibmp->w;++x) {
+            unsigned int px = _getpixel32(ibmp, x, y);
+
+            // force the alpha if it's not transparent
+            if ((px & 0x00FFFFFF) != 0xFF00FF) {
+                unsigned int npx = makeacol(getr(px), getg(px), getb(px), 0xFF);
+                _putpixel32(ibmp, x, y, npx);
+            }
+
+        }
+    }
+    VOIDRETURN();
+}
+
 struct animap *prepare_animap_from_bmp(BITMAP *in_bmp, int targa) {
     struct animap *my_a_map;
     
@@ -964,11 +985,31 @@ struct animap *prepare_animap_from_bmp(BITMAP *in_bmp, int targa) {
 
     if (targa) {
         if (bmp_alpha_scan(in_bmp))
-            my_a_map->flags = AM_HASALPHA;
+            my_a_map->flags = AM_HASALPHA;           
+    }
+    
+    if (!(my_a_map->flags & AM_HASALPHA)) {
+        bmp_alpha_force(in_bmp);
     }
 
     my_a_map->b = in_bmp;   
     my_a_map->w = in_bmp->w; 
     
     RETURN(my_a_map);
+}
+
+void increment_framecounters() { 
+    int i;
+    
+    for(i=0;i<16;i++) {
+        gd.g_framecounter[i]++;
+        if (gd.g_framecounter[i] >= FRAMECOUNTER_MAX)
+            gd.g_framecounter[i] = 0; 
+    } 
+    
+    // DEBUG //
+    //gd.g_framecounter[1] = 0; 
+    ///////////
+        
+    gd.framecounter = gd.g_framecounter[0];  
 }

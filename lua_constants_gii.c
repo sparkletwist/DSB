@@ -30,6 +30,7 @@ void update_all_inventory_info(void) {
     int max_invslots = 0;
     int max_injury = 0;
     int b_injbreak = 0;
+    int max_dtypes;
     struct iidesc tii[256];
     struct iidesc tmpi;
     char *s_i = "inventory_info";
@@ -66,6 +67,9 @@ void update_all_inventory_info(void) {
     
     TABLE_INTEGER(gii.stat_minimum, "stat_minimum", 0);
     TABLE_INTEGER(gii.stat_maximum, "stat_maximum", 9990);
+    
+    TABLE_INTEGER(max_dtypes, "damage_types", 3);
+    gii.max_dtypes = max_dtypes & 0xFF;
     
     for (n=0;n<256;++n) {
         int r = grabsysstruct(0, &(tii[n]), NULL, n);
@@ -122,8 +126,6 @@ void update_all_inventory_info(void) {
 
     gd.tmpstr = NULL;
     lua_pop(LUA, 1);
-    
-
 
     VOIDRETURN();
 }

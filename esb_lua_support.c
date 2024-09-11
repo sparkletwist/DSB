@@ -114,3 +114,34 @@ int inst_relocate(unsigned int inst, int destp) {
     RETURN(0);
 }
 
+char *get_integration_exvar(unsigned int id) {
+    static char integration_exvar[2048];
+    
+    onstack("get_integration_exvar");
+    
+    integration_exvar[0] = '\0';
+    
+    luastacksize(8);
+    lua_getglobal(LUA, "exvar");
+    lua_pushinteger(LUA, id);
+    lua_gettable(LUA, -2);
+    if (lua_istable(LUA, -1)) {
+        lua_getglobal(LUA, "__serialize");
+        lua_pushstring(LUA, "\n");
+        lua_pushstring(LUA, "");
+        lua_pushvalue(LUA, -4);
+        if (lua_pcall(LUA, 3, 1, 0) != 0) {
+            lua_function_error("integration_serializer", lua_tostring(LUA, -1));
+            VOIDRETURN();
+        }
+        sprintf(integration_exvar, "%s\n", lua_tostring(LUA, -1));
+        lua_pop(LUA, 1);
+    } else {
+        sprintf(integration_exvar, "nil");
+    }
+    lua_pop(LUA, 2);
+   
+    RETURN(integration_exvar);
+}
+
+

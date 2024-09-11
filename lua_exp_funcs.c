@@ -28,6 +28,7 @@
 #include "common_lua.h"
 
 int ZID;
+int BLIT_FORCES_ALPHA = 0;
 
 unsigned int i_s_error_c = 0;
 
@@ -250,6 +251,18 @@ int expl_game_end(lua_State *LUA) {
         gd.ending_boring = 1;
     else
         gd.ending_boring = 0;
+    
+    RETURN(0);
+}
+
+int expl_lores_scaling(lua_State *LUA) {
+
+    luaonstack(funcnames[DSB_LORES_SCALING]);
+    
+    if (lua_isboolean(LUA, -1) && lua_toboolean(LUA, -1))
+        gd.lores_pixels = 1;
+    else
+        gd.lores_pixels = 0;
     
     RETURN(0);
 }
@@ -584,6 +597,12 @@ int expl_sub_targ(lua_State *LUA) {
     if (gfxctl.subrend_targ != NULL) {
         subrend_targ = gfxctl.subrend_targ;
     } else {
+        
+        if (gfxctl.subrend_targ_valid == 0) {
+            lua_pushnil(LUA);
+            RETURN(1);
+        }
+        
         subrend_targ = &(gfxctl.subrend);
     }
     
@@ -705,7 +724,7 @@ int expl_put_pixel(lua_State *LUA) {
     lbmp = luabitmap(LUA, -4 + b, funcnames[DSB_SET_PIXEL], 1);
     x = luaint(LUA, -3 + b, funcnames[DSB_SET_PIXEL], 2);
     y = luaint(LUA, -2 + b, funcnames[DSB_SET_PIXEL], 3);
-    px = luargbval(LUA, -1 + b, funcnames[DSB_SET_PIXEL], 4);
+    px = luargbval_seta(LUA, -1 + b, funcnames[DSB_SET_PIXEL], 255, 4);
     
     lod_use(lbmp);
     if (disallow_anitarg(lbmp))
@@ -714,8 +733,14 @@ int expl_put_pixel(lua_State *LUA) {
     if (using_alpha) {
         unsigned int rgb = px;
         px = makeacol(getr(rgb), getg(rgb), getb(rgb), a);
-        lbmp->flags |= AM_HASALPHA;
-    }     
+        
+        // 0.78: don't try to autodetect this anymore, make the designer assert it 
+        //lbmp->flags |= AM_HASALPHA;
+    } else {
+        if ((px & 0x00FFFFFF) == 0x00FF00FF) { 
+            px = makeacol(255, 0, 255, 0);
+        }  
+    }
 
     putpixel(lbmp->b, x, y, px);
     
@@ -815,14 +840,63 @@ int expl_bitmap_clear(lua_State *LUA) {
     INITPARMCHECK(2, funcnames[DSB_BITMAP_CLEAR]);
     
     lbmp = luabitmap(LUA, -2, funcnames[DSB_BITMAP_CLEAR], 1);
-    rgbv = luargbval(LUA, -1, funcnames[DSB_BITMAP_CLEAR], 2);
+    rgbv = luargbval_seta(LUA, -1, funcnames[DSB_BITMAP_CLEAR], 0, 2);
     
     if (disallow_anitarg(lbmp))
         RETURN(0);
-    
+        
     clear_to_color(lbmp->b, rgbv);
     lbmp->flags &= ~(AM_HASALPHA);
  
+    RETURN(0);
+}
+
+int expl_bitmap_clear_alpha(lua_State *LUA) {
+    struct animap *lbmp;
+    int alphav;
+    unsigned int rgbav;
+    
+    INITPARMCHECK(3, funcnames[DSB_BITMAP_CLEAR_ALPHA]);
+    
+    alphav = luaint(LUA, -1, funcnames[DSB_BITMAP_CLEAR_ALPHA], 3);
+    lbmp = luabitmap(LUA, -3, funcnames[DSB_BITMAP_CLEAR_ALPHA], 1);
+    rgbav = luargbval_seta(LUA, -2, funcnames[DSB_BITMAP_CLEAR_ALPHA], alphav, 2);
+    
+    if (disallow_anitarg(lbmp))
+        RETURN(0);
+        
+    clear_to_color(lbmp->b, rgbav);
+    lbmp->flags |= AM_HASALPHA;
+ 
+    RETURN(0);
+}
+
+int expl_bitmap_animtimer(lua_State *LUA) {
+    struct animap *lbmp;
+    int fc_n;
+    
+    INITPARMCHECK(2, funcnames[DSB_BITMAP_ANIMTIMER]);
+    
+    lbmp = luabitmap(LUA, -2, funcnames[DSB_BITMAP_ANIMTIMER], 1);
+    fc_n = luaint(LUA, -1, funcnames[DSB_BITMAP_ANIMTIMER], 2);
+    
+    if (fc_n < 0) fc_n = 0;
+    else if (fc_n >= 16) fc_n = 15;
+    
+    lbmp->g_fc_n = fc_n;
+
+    RETURN(0);
+}
+
+int expl_make_blit_force_alpha(lua_State *LUA) {
+    int bf;
+    
+    INITPARMCHECK(1, funcnames[DSB_MAKE_BLIT_FORCE_ALPHA]);
+    
+    bf = lua_toboolean(LUA, -1);
+
+    BLIT_FORCES_ALPHA = bf;
+    
     RETURN(0);
 }
 
@@ -851,6 +925,9 @@ int expl_bitmap_blit(lua_State *LUA) {
     if (scale) {
         dxsiz = luaint(LUA, -2, funcnames[DSB_BITMAP_BLIT], 9);
         dysiz = luaint(LUA, -1, funcnames[DSB_BITMAP_BLIT], 10);
+    } else {
+        dxsiz = xsiz;
+        dysiz = ysiz;
     }
     
     lod_use(src_bmp);
@@ -863,10 +940,26 @@ int expl_bitmap_blit(lua_State *LUA) {
         RETURN(0);
     
     if (scale) {
-        DSB_aa_scale_blit(1, src_bmp->b, dest_bmp->b, xsrc, ysrc, xsiz, ysiz,
+        DSB_aa_scale_blit(1, gd.lores_pixels, src_bmp->b, dest_bmp->b, xsrc, ysrc, xsiz, ysiz,
             xdest, ydest, dxsiz, dysiz);
     } else {
         blit(src_bmp->b, dest_bmp->b, xsrc, ysrc, xdest, ydest, xsiz, ysiz);
+    }
+    
+    // nonalpha to alpha, force all alpha values to full
+    if (BLIT_FORCES_ALPHA) {
+        if (dest_bmp->flags & AM_HASALPHA) {
+            if (!(src_bmp->flags & AM_HASALPHA)) {
+                int xx, yy;
+                for (yy=0;yy<dysiz;yy++) {
+                    for (xx=0;xx<dxsiz;xx++) {
+                        int r_pix = _getpixel32(dest_bmp->b, xdest+xx, ydest+yy);
+                        r_pix = 0xFF000000 | (r_pix & 0x00FFFFFF);
+                        _putpixel32(dest_bmp->b, xx+xdest, yy+ydest, r_pix);
+                    }
+                }
+            }
+        }
     }
     
     if (src_bmp->flags & AM_HASALPHA)
@@ -937,7 +1030,7 @@ int expl_bitmap_draw(lua_State *LUA) {
     
     if (dest_bmp->flags & AM_HASALPHA)
         alphafix = 1;
-
+        
     draw_gfxicon_af(dest_bmp->b, src_bmp, xdest, ydest, flip, NULL, alphafix);
     
     if (draw_sub)
@@ -981,7 +1074,10 @@ int expl_bitmap_rect(lua_State *LUA) {
         }
                 
         if (!draw_animap) {
-            col = luargbval(LUA, -2, funcnames[DSB_BITMAP_RECT], 6);
+            col = luargbval_seta(LUA, -2, funcnames[DSB_BITMAP_RECT], 255, 6);
+            //exception for powerpink
+            if (col == 0xFFFF00FF)
+                col = 0x00FF00FF;
         }
     }
     
@@ -1033,7 +1129,7 @@ int expl_bitmap_textout(lua_State *LUA) {
     xc = luaint(LUA, -4, funcnames[DSB_BITMAP_TEXTOUT], 4);
     yc = luaint(LUA, -3, funcnames[DSB_BITMAP_TEXTOUT], 5);
     align = luaint(LUA, -2, funcnames[DSB_BITMAP_TEXTOUT], 6);
-    fontcolor = luargbval(LUA, -1, funcnames[DSB_BITMAP_TEXTOUT], 7);
+    fontcolor = luargbval_seta(LUA, -1, funcnames[DSB_BITMAP_TEXTOUT], 255, 7);
     
     lod_use(dest_bmp);
     if (disallow_anitarg(dest_bmp))
@@ -2059,8 +2155,10 @@ int expl_champion_toparty(lua_State *LUA) {
     gd.party[ppos] = who_add;
     party_composition_changed(ap, PCC_MOVEON, real_level);
     
-    if (gd.leader == -1)
+    if (gd.leader == -1) {
         gd.leader = ppos;
+        gd.whose_spell = ppos;
+    }
 
     gd.idle_t[ppos] = 0;
         
@@ -2187,17 +2285,16 @@ int expl_offer_champion(lua_State *LUA) {
     
     gd.champs[who_offer-1].load = sum_load(who_offer-1);    
     calculate_maxload(who_offer);
-    determine_load_color(who_offer-1);
     
     if (!added)
         RETURN(0);
     
     if (offermode == 1)
-        gfxctl.i_subrend = pcxload("OPTION_RES", NULL);
+        gfxctl.i_subrend = gfxctl.resrei.res;
     else if (offermode == 2)
-        gfxctl.i_subrend = pcxload("OPTION_REI", NULL);
+        gfxctl.i_subrend = gfxctl.resrei.rei;
     else if (offermode == 3)
-        gfxctl.i_subrend = pcxload("OPTION_RES_REI", NULL);
+        gfxctl.i_subrend = gfxctl.resrei.resrei;
         
     gd.tmp_champ = added;
     put_into_pos(gd.a_party, added);
@@ -2270,7 +2367,7 @@ int expl_objzone(lua_State *LUA) {
             }
         }
         
-        draw_i_pl_ex(1, sbmp->b, gd.party[ppos]-1, xx, yy, zn, 0);
+        draw_i_pl_ex(1, !!(sbmp->flags & AM_HASALPHA), sbmp->b, gd.party[ppos]-1, xx, yy, zn, 0);
         if (gd.who_method == (ppos+1) && gd.method_loc == zn) {
             draw_gfxicon(sbmp->b, gii.sel_box, xx, yy, 0, NULL);
         }
@@ -2290,7 +2387,7 @@ int expl_objzone(lua_State *LUA) {
             unsigned int i_n = p_inst->inside[zn];
             
             if (i_n) {
-                draw_objicon(sbmp->b, i_n, xx, yy, 0);
+                draw_objicon(sbmp->b, !!(sbmp->flags & AM_HASALPHA), i_n, xx, yy, 0);
             }
         }
     }  
@@ -3060,7 +3157,6 @@ int expl_set_stat(lua_State *LUA) {
     validate_stat(which);
     gd.champs[who-1].stat[which] = sval;
     calculate_maxload(who);
-    determine_load_color(who-1);  
     
     destroy_system_subrenderers();
 
@@ -3100,7 +3196,6 @@ int expl_set_maxstat(lua_State *LUA) {
     validate_stat(which);
     gd.champs[who-1].maxstat[which] = sval;
     calculate_maxload(who);
-    determine_load_color(who-1);  
     
     destroy_system_subrenderers();
     
@@ -3194,7 +3289,6 @@ int expl_set_food(lua_State *LUA) {
     
     gd.champs[who-1].food = fv;
     calculate_maxload(who);
-    determine_load_color(who-1);  
     
     destroy_system_subrenderers();
     
@@ -3218,8 +3312,7 @@ int expl_set_water(lua_State *LUA) {
     
     gd.champs[who-1].water = wv;
     calculate_maxload(who);
-    determine_load_color(who-1);  
-    
+
     destroy_system_subrenderers();
     
     RETURN(0);
@@ -3353,6 +3446,7 @@ int expl_write(lua_State *LUA) {
     struct animap *in_bmp;
     int b = 0;
     int i_ttl = 50;
+    int text_to_log = 1;
     
     INITVPARMCHECK(2, funcnames[DSB_WRITE]);
     if (lua_gettop(LUA) == 3) {
@@ -3372,7 +3466,7 @@ int expl_write(lua_State *LUA) {
     
     pushtxt_cons_bmp(textmsg, in_color, in_bmp, i_ttl);
     
-    if (1 || debug)
+    if (text_to_log || debug)
         fprintf(errorlog, "dsb_write: %s\n", textmsg);
     
     RETURN(0);    
@@ -3462,8 +3556,7 @@ int expl_set_bar(lua_State *LUA) {
     
     setbarval(who, which, nval);
     calculate_maxload(who);
-    determine_load_color(who-1);  
-    
+
     RETURN(0);
 }
 
@@ -3483,7 +3576,7 @@ int expl_set_maxbar(lua_State *LUA) {
     validate_barstat(which);   
     gd.champs[who-1].maxbar[which] = nval;
     calculate_maxload(who);
-    determine_load_color(who-1);  
+ 
     RETURN(0);
 }
 
@@ -4136,6 +4229,24 @@ int expl_get_sleepstate(lua_State *LUA) {
     RETURN(1);
 }
 
+int expl_set_sleepstate(lua_State *LUA) {
+    int sleep = 0;
+    
+    INITPARMCHECK(1, funcnames[DSB_SET_SLEEPSTATE]);
+
+    if (lua_isboolean(LUA, -1) && lua_toboolean(LUA, -1))
+        sleep = 1;
+    else if (lua_isnumber(LUA, -1) && lua_tonumber(LUA, -1) > 0)
+        sleep = 1;
+        
+    if (!sleep && viewstate == VIEWSTATE_SLEEPING)
+        wake_up();
+    else if (sleep && viewstate != VIEWSTATE_SLEEPING)
+        go_to_sleep();
+          
+    RETURN(0);
+}
+
 int expl_wakeup(lua_State *LUA) {
     INITPARMCHECK(0, funcnames[DSB_WAKEUP]);
     if (viewstate == VIEWSTATE_SLEEPING)
@@ -4528,6 +4639,18 @@ int expl_cur_inv(lua_State *LUA) {
     RETURN(1);
 }
 
+int expl_cur_champ(lua_State *LUA) {
+
+    INITPARMCHECK(0, funcnames[DSB_CUR_CHAMP]);
+    
+    if (viewstate == VIEWSTATE_CHAMPION) {
+        lua_pushinteger(LUA, gd.who_look);
+    } else
+        lua_pushnil(LUA);
+        
+    RETURN(1);
+}
+
 int expl_textformat(lua_State *LUA) {
     int cpl, ypl, maxlines;
     
@@ -4580,7 +4703,8 @@ int expl_party_scanfor(lua_State *LUA) {
 
 // dsb_fullscreen(bitmap/drawfunc, clickfunc, updatefunc, draw_ptr, [fade mode]);
 int expl_fullscreen(lua_State *LUA) {
-    unsigned int push_framecounter;
+    int fci;
+    unsigned int push_framecounter[16];
     int rv;
     struct fullscreen *fsd;
 
@@ -4651,11 +4775,19 @@ int expl_fullscreen(lua_State *LUA) {
 
     upstack();
     
-    push_framecounter = gd.framecounter;
-    gd.framecounter = 0; 
+    for(fci=0;fci<16;fci++) {
+        push_framecounter[fci] = gd.g_framecounter[fci];
+        gd.g_framecounter[fci] = 0;
+    }
+    gd.framecounter = 0;
+     
     rv = fullscreen_mode(fsd);
     while (mouse_b) Sleep(10);
-    gd.framecounter = push_framecounter;
+    
+    for(fci=0;fci<16;fci++) {
+        gd.g_framecounter[fci] = push_framecounter[fci]; 
+    }
+    gd.framecounter = gd.g_framecounter[0];
     
     luaL_unref(LUA, LUA_REGISTRYINDEX, fsd->lr_update);
     luaL_unref(LUA, LUA_REGISTRYINDEX, fsd->lr_on_click);
@@ -5039,6 +5171,31 @@ int expl_poll_keyboard(lua_State *LUA) {
     RETURN(1);
 }
 
+int expl_get_attackppos(lua_State *LUA) {
+    int atkppos;
+    
+    INITPARMCHECK(0, funcnames[DSB_GET_ATTACKPPOS]);
+    
+    atkppos = gd.lastattackppos;
+    lua_pushinteger(LUA, atkppos);
+    
+    RETURN(1);
+}
+
+int expl_set_attackppos(lua_State *LUA) {
+    int atkppos;
+    
+    INITPARMCHECK(1, funcnames[DSB_SET_ATTACKPPOS]);
+    
+    atkppos = luaint(LUA, -1, funcnames[DSB_SET_ATTACKPPOS], 1);
+    validate_ppos(atkppos);
+    
+    gd.lastattackppos = (atkppos & 0xFF);
+    
+    RETURN(0);
+}
+
+
 void lua_register_funcs(lua_State *LUA) {
     int Counter = 0;
         
@@ -5124,6 +5281,7 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_set_gfxflag);
     NEWL(expl_clear_gfxflag);
     NEWL(expl_toggle_gfxflag);
+    NEWL(expl_rawset_gfxflag);
     NEWL(expl_get_mflag);
     NEWL(expl_set_mflag);
     NEWL(expl_clear_mflag);
@@ -5140,6 +5298,9 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_sub_targ);
     NEWL(expl_dungeon_view);
     NEWL(expl_bitmap_clear);
+    NEWL(expl_bitmap_clear_alpha);
+    NEWL(expl_bitmap_animtimer);
+    NEWL(expl_make_blit_force_alpha);
     NEWL(expl_objzone);
     NEWL(expl_msgzone);
     NEWL(expl_find_arch);
@@ -5169,6 +5330,7 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_get_flystate);
     NEWL(expl_set_flystate);
     NEWL(expl_get_sleepstate);
+    NEWL(expl_set_sleepstate);
     NEWL(expl_wakeup);
     NEWL(expl_set_openshot);
     NEWL(expl_get_flydelta);
@@ -5205,6 +5367,7 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_update_inventory_info);
     NEWL(expl_update_system);
     NEWL(expl_cur_inv);
+    NEWL(expl_cur_champ);
     NEWL(expl_delay_func);
     NEWL(expl_write);
     NEWL(expl_get_bar);
@@ -5287,6 +5450,10 @@ void lua_register_funcs(lua_State *LUA) {
     NEWL(expl_poll_keyboard);
     NEWL(expl_dmtextconvert);
     NEWL(expl_numbertextconvert);
+    NEWL(expl_get_lookmode);
+    NEWL(expl_get_attackppos);
+    NEWL(expl_set_attackppos);
+    NEWL(expl_lores_scaling);
     
     if (Counter != ALL_LUA_FUNCS) {
         int numstrings = 0;

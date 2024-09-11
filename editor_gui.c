@@ -216,7 +216,10 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                                 
                                 locator_win = GetDlgItem(hwnd, ESB_DLOCATOR);
                                 InvalidateRect(locator_win, NULL, TRUE);
-                                UpdateWindow(locator_win);   
+                                UpdateWindow(locator_win);
+                                
+                                integration_arch_change(xinfo->inst, p_arch->luaname);
+                                integration_inst_update(xinfo->inst);   
                             }
                             edg.op_base_sel_str = NULL;
                         }  
@@ -271,6 +274,7 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                             SendDlgItemMessage(hwnd, ESB_EXVARLIST,
                                 LB_SETCURSEL, csel, 0);
                             dsbfree(exvn);
+                            integration_inst_update(xinfo->inst);
                         }
                         
                     } break;
@@ -297,6 +301,8 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                                 }   
                                 SendDlgItemMessage(hwnd, ESB_EXVARLIST,
                                     LB_SETCURSEL, csel, 0);
+                                    
+                                integration_inst_update(xinfo->inst);
                             }
                             free(exvn);
                         }
@@ -366,6 +372,8 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                         ed_grab_exvars_for(xinfo->inst,
                             hwnd, ESB_EXVARLIST);
                             
+                        integration_inst_update(xinfo->inst);
+                            
                         edg.op_picker_val = 0;
                             
                     } break;
@@ -374,77 +382,88 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_MONSTERGEN, hwnd, ESB_monstergen_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDOPBY: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_OPBYED, hwnd, ESB_opby_ed_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST); 
+                        integration_inst_update(xinfo->inst);                       
                     } break;
                     
                     case ESB_EDSPINB: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_SPINEDIT, hwnd, ESB_spinedit_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST); 
+                        integration_inst_update(xinfo->inst);                       
                     } break;
                     
                     case ESB_EDSHOOT: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_SHOOTEROPT, hwnd, ESB_shooter_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDMIRROR: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_MIRROROPT, hwnd, ESB_mirror_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDARCH: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_ARCHPICKER_SWAP, hwnd, ESB_archpick_swap_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDFUNCS: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_FUNCCALLEROPT, hwnd, ESB_function_caller_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST); 
+                        integration_inst_update(xinfo->inst);                       
                     } break;
                     
                     case ESB_EDITEMACTION: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_ITEMACTIONEDITOR, hwnd, ESB_item_action_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDTRIGCON: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_REQEDITOR, hwnd, ESB_trigger_controller_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDCOUNTER: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_COUNTEREDITOR, hwnd, ESB_counter_edit_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST);
+                        integration_inst_update(xinfo->inst);                        
                     } break;
                     
                     case ESB_EDDOORSTR: {
                         edg.op_inst = xinfo->inst;
                         ESB_modaldb(ESB_DOOREDITOR, hwnd, ESB_door_edit_proc, 0);
                         ed_grab_exvars_for(xinfo->inst,
-                            hwnd, ESB_EXVARLIST);                        
+                            hwnd, ESB_EXVARLIST); 
+                        integration_inst_update(xinfo->inst);                       
                     } break;
                     
                     case ESB_EDTAR: {
@@ -467,6 +486,8 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                         ESB_modaldb(ESB_TPICKER, hwnd, ESB_target_picker_proc, 1);
                         ed_grab_exvars_for(xinfo->inst,
                             hwnd, ESB_EXVARLIST);
+                            
+                        integration_inst_update(xinfo->inst);
                             
                         edg.op_picker_val = 0;
                             
@@ -691,7 +712,15 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
             
             new_actstate = !!(p_inst->gfxflags & OF_INACTIVE);
             if (old_actstate != new_actstate) {
+                int integration = 0;
+                
                 luastacksize(5);
+                
+                if (dsb_is_running()) {
+                    gd.integration_action++;
+                    integration = 1;
+                }
+                
                 if (new_actstate)
                     lua_getglobal(LUA, "editor_inst_deactivate");
                 else
@@ -701,6 +730,11 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                 if (lua_pcall(LUA, 2, 0, 0) != 0) {
                     lua_function_error("instchanger", lua_tostring(LUA, -1));
                 }
+                
+                if (integration) {
+                    gd.integration_action--;
+                }
+                
                 lstacktop();
             } 
 
@@ -737,6 +771,10 @@ INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
                     p_inst->facedir = cursel;
                 }               
             }
+            
+            integration_tileposition_update(xinfo->inst, p_inst->tile);
+            integration_inst_update(xinfo->inst);
+            
         }        
         EndDialog(hwnd, 0);
     }
@@ -790,6 +828,7 @@ int ed_initial_validate(const char *buffer) {
 }
 
 int ed_lua_alert_niltest(HWND hwnd, const char *bptr) {
+    int badexvar;
     char *lbuffer = dsbfastalloc(1600);
     
     onstack("ed_lua_alert_niltest");
@@ -800,6 +839,14 @@ int ed_lua_alert_niltest(HWND hwnd, const char *bptr) {
             "Lua Error", MB_ICONEXCLAMATION);
         RETURN(0);
     } 
+    
+    badexvar = lc_parm_int("__ed_bad_exvar_expression_check", 0);
+    if (badexvar) {
+        MessageBox(hwnd, "The specified expression evaluates to a system table.\n"
+            "This will cause significant problems when editing and saving.",
+            "Oops", MB_ICONEXCLAMATION);
+        RETURN(0);        
+    }
     
     lua_getglobal(LUA, "EXVAR_EXPRESSION");
     if (lua_isnil(LUA, -1)) {
@@ -1288,6 +1335,8 @@ INT_PTR CALLBACK ESB_level_info_proc(HWND hwnd, UINT message,
                     dd->lightlevel = n_light;
                     dd->xp_multiplier = n_xpm;
                     
+                    integration_dungeon_resized();
+                    
                     b_iter = SendDlgItemMessage(hwnd, ESB_LI_ITERAT, BM_GETCHECK, 0, 0); 
                     if (b_iter) dlf_flags |= DLF_ITERATIVE_CEIL;
                     
@@ -1466,7 +1515,7 @@ INT_PTR CALLBACK ESB_global_info_proc(HWND hwnd, UINT message,
                             }
                         }                        
                     }
-                    
+                                       
                     luastacksize(5);
                     lua_getglobal(LUA, "_ESBWALLSET_NAMES");
                     if (sizdif < 0) {
@@ -1531,6 +1580,7 @@ INT_PTR CALLBACK ESB_global_info_proc(HWND hwnd, UINT message,
                         ed_resizesubs(sys_hwnd);                        
                     } 
                     
+                    integration_dungeon_resized();
                     MessageBox(hwnd, "Number of levels changed.\n", "Success", MB_ICONINFORMATION);                    
                     SendMessage(hwnd, WM_CLOSE, 0, 0);                   
                                          
@@ -1833,8 +1883,19 @@ void ed_draw_backbuffer(BITMAP *scx, int i_alevel, int xdf_flags) {
         if (xdf_flags & XDF_PARTYPOS) {
             if (i_alevel == gd.p_lev[0]) {
                 int s_mark_w = edg.marked_cell->w / 4;
+                
                 masked_blit(edg.marked_cell, scx, s_mark_w * gd.p_face[0], 0,
                     gd.p_x[0]*ch - (ch/2), gd.p_y[0]*ch - (ch/2),
+                    s_mark_w, s_mark_w);
+            }
+        }
+        
+        if (xdf_flags & XDF_PARTYCURRENTPOS) {
+            if (i_alevel == gd.p_lev[1]) {
+                int s_mark_w = edg.marked_cell->w / 4;
+                
+                masked_blit(edg.marked_cell, scx, s_mark_w * gd.p_face[1], ch*2,
+                    gd.p_x[1]*ch - (ch/2), gd.p_y[1]*ch - (ch/2),
                     s_mark_w, s_mark_w);
             }
         }
@@ -1844,14 +1905,14 @@ void ed_draw_backbuffer(BITMAP *scx, int i_alevel, int xdf_flags) {
         {
             int ch32 = (ch * 3) / 2;
             int pvi = edg.op_picker_val - 1;
-            masked_blit(edg.marked_cell, scx, pvi * ch32, ch*2,
+            masked_blit(edg.marked_cell, scx, pvi * ch32, ch*4,
                 edg.op_x*ch - (ch/4), edg.op_y*ch - (ch/4), ch32, ch32);            
         }
         
         if (i_alevel == edg.global_mark_level) {
             int ch32 = (ch * 3) / 2;
             int pvi = 1;
-            masked_blit(edg.marked_cell, scx, pvi * ch32, ch*2,
+            masked_blit(edg.marked_cell, scx, pvi * ch32, ch*4,
                 edg.global_mark_x*ch - (ch/4), edg.global_mark_y*ch - (ch/4), ch32, ch32);  
         }            
     }
@@ -1946,6 +2007,8 @@ void force_redraw(HWND ehwnd, int db) {
         level = edg.ed_lev;
         if (edg.draw_mode == DRM_PARTYSTART)
             xdraw = XDF_PARTYPOS;
+        else if (edg.draw_mode == DRM_PARTYCURRENT)
+            xdraw = XDF_PARTYCURRENTPOS;
         else if (edg.draw_mode == DRM_WALLSET)
             xdraw = XDF_WSPAINT;
     }
@@ -2045,7 +2108,7 @@ int ed_paint_targets(int n, int *tl, int *ml,
      
     for (i=0;i<n;++i) {
         int cti = tl[i];
-        if (oinst[cti]) {
+        if (oinst[cti] && !oinst[cti]->esb_iscut) {
             struct inst *p_t_inst = oinst[cti];
             int ctm = ml[i];
             int tilesize = edg.cells->w / 8;
@@ -2479,15 +2542,18 @@ void ed_window_mouseclick(HWND ehwnd, int x, int y, int inh) {
                     if (!d && edg.dmode) {
                         dd->t[ty][tx].w |= 1;
                         need_update = 1;
+                        integration_change_cell(edg.ed_lev, tx, ty, 1);
                     } else if (d && !edg.dmode) {
                         dd->t[ty][tx].w &= ~1;
                         need_update = 1;
+                        integration_change_cell(edg.ed_lev, tx, ty, 0);
                     }
 
                 } else {
                     dd->t[ty][tx].w ^= 1;
                     edg.dmode = (dd->t[ty][tx].w & 1);
                     need_update = 1;
+                    integration_change_cell(edg.ed_lev, tx, ty, edg.dmode);
                 }
             } else if (edg.draw_mode == DRM_DRAWOBJ) {
                 if (!inh) {
@@ -2530,12 +2596,24 @@ void ed_window_mouseclick(HWND ehwnd, int x, int y, int inh) {
                     edg.wsd_x = tx;
                     edg.wsd_y = ty;
                 }
-            } else if (edg.draw_mode == DRM_PARTYSTART) {
-                gd.p_lev[0] = edg.ed_lev;
-                gd.p_x[0] = tx;
-                gd.p_y[0] = ty;
-                gd.p_face[0] = edg.d_dir;
+                
+            } else if (edg.draw_mode == DRM_PARTYSTART || edg.draw_mode == DRM_PARTYCURRENT) {
+                int place_idx = 0;
+                int exec_integration_move = 0;
+                
+                if (edg.draw_mode == DRM_PARTYCURRENT) {
+                    place_idx = 1;
+                    exec_integration_move = 1;
+                }
+                    
+                gd.p_lev[place_idx] = edg.ed_lev;
+                gd.p_x[place_idx] = tx;
+                gd.p_y[place_idx] = ty;
+                gd.p_face[place_idx] = edg.d_dir;
                 force_redraw(edg.subwin, 1);
+                
+                if (exec_integration_move)
+                    integration_party_moved(edg.ed_lev, tx, ty, edg.d_dir);
             }
         }
     }
@@ -2737,7 +2815,7 @@ int locw_draw(HWND ehwnd, HDC hdc, struct ext_hwnd_info *exi) {
         
         compilate_blit(czb, hl, zn, fcol);
         
-    } else if (edg.draw_mode == DRM_PARTYSTART) {
+    } else if (edg.draw_mode == DRM_PARTYSTART || edg.draw_mode == DRM_PARTYCURRENT) {
         zn = 8;
         compilate_blit(czb, edg.d_dir, zn, makecol(32, 255, 96)); 
         edg.autosel = 1;   
@@ -2757,8 +2835,14 @@ int locw_draw(HWND ehwnd, HDC hdc, struct ext_hwnd_info *exi) {
 void recursive_inst_destroy(int inst, int dpsquare) {
     struct inst_loc *il;
     struct inst *p_inst;
+    int integration = 0;
     
     onstack("recursive_inst_destroy");
+    
+    if (dsb_is_running()) {
+        gd.integration_action++;
+        integration = 1;
+    }
     
     p_inst = oinst[inst];
     il = p_inst->chaintarg;
@@ -2781,6 +2865,10 @@ void recursive_inst_destroy(int inst, int dpsquare) {
     p_inst->chaintarg = NULL;
     inst_destroy(inst, !!(dpsquare)); 
     lc_parm_int("clean_up_target_exvars", 1, inst);  
+    
+    if (integration) {
+        gd.integration_action--;
+    }
     
     VOIDRETURN();    
 }

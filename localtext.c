@@ -45,7 +45,7 @@ void process_localtable_in_lua(Htextbuf *loc_buf) {
                     if (v != '\0') {
                         int si = 0;
                         int di = 0;
-                        char v_modified[300];
+                        char *v_modified = dsbfastalloc(4096);
                     
                         while (v[si] != '\0') {
                             if (v[si] == '\\') {
@@ -78,7 +78,7 @@ void process_localtable_in_lua(Htextbuf *loc_buf) {
                                 di++;
                             }
                             
-                            if (di == 299)
+                            if (di == 4095)
                                 break;
                         }
                         v_modified[di] = '\0';

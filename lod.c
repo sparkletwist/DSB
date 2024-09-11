@@ -66,6 +66,9 @@ void lod_use(struct animap *lani) {
     if (gd.loaded_tga && !(lani->lod->d & ALOD_SCANNED)) {
         if (bmp_alpha_scan(lod_bmp))
             lani->flags |= AM_HASALPHA;
+        else
+            bmp_alpha_force(lod_bmp);
+            
         lani->lod->d |= ALOD_SCANNED;
     }
     lani->b = lod_bmp;   

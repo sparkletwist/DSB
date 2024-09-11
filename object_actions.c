@@ -17,6 +17,8 @@
 #include "monster.h"
 #include "render.h"
 #include "viewscale.h"
+#include "integration.h"
+#include "integration_dsb.h"
 
 extern const char *Sys_Inventory;
 extern int Gmparty_flags;
@@ -63,7 +65,7 @@ void i_instmd_queue(struct obj_aff **ov_tbl,
     oa_n->n = NULL;
         
     // store state information for handling the queue
-    if (op == INSTMD_INST_MOVE || op == INSTMD_INST_DELETE) {
+    if (op == INSTMD_INST_MOVE || op == INSTMD_INST_MOVE_ENABLE || op == INSTMD_INST_DELETE) {
         v_onstack("i_instmd_queue.character");
         if (oinst[inst] && oinst[inst]->level == LOC_CHARACTER) {
             int xl = oinst[inst]->x;
@@ -128,6 +130,7 @@ void instmd_queue_flush_loop(struct obj_aff **p_oaq,
         
         switch(oaq->op) {
             case INSTMD_INST_MOVE:
+            case INSTMD_INST_MOVE_ENABLE:
                 if (oinst[oaq->inst]) {
                     struct inst *p_inst = oinst[oaq->inst];
                     
@@ -141,6 +144,13 @@ void instmd_queue_flush_loop(struct obj_aff **p_oaq,
                         if (oaq->lev != LOC_LIMBO) {
                             place_instance(oaq->inst, oaq->lev, oaq->x, oaq->y,
                                 oaq->dir, oaq->data);
+                                
+                            if (oaq->lev >= 0 && oaq->op == INSTMD_INST_MOVE_ENABLE) {
+                                if (!(p_inst->gfxflags & G_INACTIVE)) {
+                                    enable_inst(oaq->inst, 1);
+                                }
+                            }
+                            
                         }
                     }
                 }
@@ -203,20 +213,37 @@ void instmd_queue_flush_loop(struct obj_aff **p_oaq,
 }
 
 void queued_inst_destroy(unsigned int inst) {
+    int destroy_debug_mode = debug;
     struct inst *p_inst;
+    char rmsg[200];
 
     onstack("queued_inst_destroy");
     
     p_inst = oinst[inst];
-    if (p_inst == NULL)
+    if (p_inst == NULL) {
         VOIDRETURN();
-        
-    if (gd.queue_rc && (p_inst->level >= 0 || inst == gd.always_queue_inst))
+    }
+                
+    if (gd.queue_rc && (p_inst->level >= 0 || inst == gd.always_queue_inst)) {
         instmd_queue(INSTMD_INST_DELETE, 0, 0, 0, 0, inst, 0);
-    else if (gd.queue_inv_rc && p_inst->level == LOC_CHARACTER)
-        inv_instmd_queue(INSTMD_INST_DELETE, 0, 0, 0, 0, inst, 0);    
-    else
+        if (destroy_debug_mode) {
+            sprintf(rmsg, "QUEUED DESTROYING INST %d [%d]", inst, gd.queue_rc);
+        }   
+    } else if (gd.queue_inv_rc && p_inst->level == LOC_CHARACTER) {
+        inv_instmd_queue(INSTMD_INST_DELETE, 0, 0, 0, 0, inst, 0); 
+        if (destroy_debug_mode) {
+            sprintf(rmsg, "INVQUEUE DESTROYING INST %d", inst);
+        }   
+    } else {
         inst_destroy(inst, 0);
+        if (destroy_debug_mode) {
+            sprintf(rmsg, "IMMEDIATELY DESTROYING INST %d", inst);
+        }
+    }
+    
+    if (destroy_debug_mode) {
+        console_system_message(rmsg, makecol(255,0,0));
+    }
         
     VOIDRETURN();
 }
@@ -692,11 +719,13 @@ void member_func_all_owned(const char *func, int param) {
 
 void change_facing(int ap, int olddir, int newdir, int s) {
     int actual_dir = newdir;
-    
+        
     if (s) {
         p_to_tile(ap, T_OFF_TURN, olddir);
         p_to_tile(ap, T_ON_TURN, newdir);
     }
+    
+    integration_party_moveto(gd.p_lev[ap], gd.p_x[ap], gd.p_y[ap], gd.p_face[ap]);
     
     // use the party's actual direction in case it got tweaked
     member_func_all_owned("on_turn", gd.p_face[ap]);
@@ -831,7 +860,7 @@ int to_tile(int lev, int xx, int yy, int dir, int inst, int onoff) {
         il_event_list = scan_d_trigger(il_event_list,
             dd->t[yy][xx].il[dir], inst);
     }
-     
+         
      // this used to actually do something.
      // I'll leave it here in case I need to do something again
     for(priority=0;priority>=0;--priority) {
@@ -1114,7 +1143,6 @@ void inv_pickup_all(int li_who) {
     }    
     gd.champs[who].load = sum_load(who);
     calculate_maxload(li_who);
-    determine_load_color(who);
     
     gd.queue_inv_rc--;
     if (!gd.queue_inv_rc)
@@ -1150,8 +1178,7 @@ void inv_putdown_all(int li_who) {
     }  
     gd.champs[li_who-1].load = sum_load(who);
     calculate_maxload(li_who);
-    determine_load_color(who);
-    
+
     gd.queue_inv_rc--;
     if (!gd.queue_inv_rc)
         flush_inv_instmd_queue();

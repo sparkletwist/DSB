@@ -138,8 +138,7 @@ void mouse_obj_drop(unsigned int putdown) {
     if (gd.leader >= 0) {
         int ipl = gd.party[gd.leader]-1;
 
-        gd.champs[ipl].load -= ObjMass(putdown);
-        determine_load_color(ipl);    
+        gd.champs[ipl].load -= ObjMass(putdown);    
     }   
     
     VOIDRETURN();   

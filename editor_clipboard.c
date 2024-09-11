@@ -17,6 +17,8 @@
 #include "editor_shared.h"
 #include "editor_menu.h"
 #include "editor_clipboard.h"
+#include "integration.h"
+#include "integration_esb.h"
 
 extern HWND sys_hwnd;
 extern lua_State *LUA;
@@ -35,7 +37,7 @@ int duplicate_instance(int from_id) {
     onstack("duplicate_instance");
     
     p_from = oinst[from_id];
-    to_id = next_object_inst(p_from->arch, 0);
+    to_id = next_object_inst(0, p_from->arch, 0);
     p_to = oinst[to_id];
     
     memcpy(p_to, p_from, sizeof(struct inst));
@@ -107,7 +109,7 @@ void note_exvar_duplication(int from_id, int to_id) {
     VOIDRETURN();
 }
 
-void change_inside_location(int in_what) {
+void change_inside_location(int in_what, int integration) {
     struct inst *p_in_inst;
     int i;
     
@@ -116,14 +118,36 @@ void change_inside_location(int in_what) {
     for (i=0;i<p_in_inst->inside_n;++i) {
         int iobj = p_in_inst->inside[i];
         oinst[iobj]->x = in_what;
+        
+        if (integration) {
+            struct obj_arch *p_obj_arch = Arch(oinst[iobj]->arch);
+            const char *arch_name = p_obj_arch->luaname;
+            
+            finalize_integration_obj_add(iobj, arch_name, LOC_IN_OBJ, in_what, i, 0);
+            integration_inst_update(iobj);            
+        }
+        
         if (oinst[iobj]->inside_n > 0) {
-            change_inside_location(iobj);
+            change_inside_location(iobj, integration);
         }
     }
     VOIDRETURN();    
 }
 
-void paste_list_at_location(struct inst_loc *in_list, int lev, int x, int y, int t) {
+void list_is_cut(struct inst_loc *in_list) {
+    struct inst_loc *dt = in_list;
+    
+    onstack("list_is_cut");
+    while (dt) {
+        struct inst *p_inst = oinst[dt->i];
+        p_inst->esb_iscut = 1;        
+        dt = dt->n;    
+    }
+    
+    VOIDRETURN();     
+}
+
+void paste_list_at_location(struct inst_loc *in_list, int lev, int x, int y, int t, int integration) {
     struct inst_loc *dt = in_list;
     
     onstack("paste_list_at_location");
@@ -134,14 +158,33 @@ void paste_list_at_location(struct inst_loc *in_list, int lev, int x, int y, int
         p_inst->y = y;
         p_inst->tile = t;
         
-        if (p_inst->inside_n > 0) {
-            change_inside_location(dt->i);
+        p_inst->esb_iscut = 0;
+        
+        if (!integration) {
+            if (p_inst->inside_n > 0) {
+                change_inside_location(dt->i, 0);
+            }
         }
         
         dt = dt->n;    
     }
     if (lev >= 0) {
         struct inst_loc *targ_lt = dun[lev].t[y][x].il[t];
+        
+        if (integration) {
+            struct inst_loc *integ_list = in_list;
+            while (integ_list) {
+                v_onstack("paste_list_at_location.integration");
+                struct obj_arch *p_obj_arch = Arch(oinst[integ_list->i]->arch);
+                const char *arch_name = p_obj_arch->luaname;
+                
+                finalize_integration_obj_add(integ_list->i, arch_name, lev, x, y, t);
+                integration_inst_update(integ_list->i);
+                integ_list = integ_list->n;
+                v_upstack();
+            }
+        }
+        
         if (!targ_lt) {
             dun[lev].t[y][x].il[t] = in_list;
         } else {
@@ -151,14 +194,37 @@ void paste_list_at_location(struct inst_loc *in_list, int lev, int x, int y, int
             targ_lt->n = in_list;
         }
     }
+    
+    // change_inside_location has to be called after the object has already
+    // been created for DSB to be able to create objects in it; all this
+    // does for ESB is make the above loop less efficient so it's fine
+    if (integration) {
+        dt = in_list;
+        while (dt) {
+            struct inst *p_inst = oinst[dt->i]; 
+            
+            if (p_inst->inside_n > 0) {
+                change_inside_location(dt->i, 1);
+            }
+            
+            dt = dt->n;  
+        }
+    }
+    
     VOIDRETURN();
 }
 
 void ed_clipboard_command(int cmd) {
+    int integration = 0;
+    
     onstack("ed_clipboard_command");
     
     if (!edg.cp) {
         VOIDRETURN();
+    }
+    
+    if (dsb_is_running()) {
+        integration = 1;
     }
     
     if (cmd == ECCM_CUT || cmd == ECCM_COPY) {
@@ -189,7 +255,20 @@ void ed_clipboard_command(int cmd) {
             v_onstack("ed_clipboard_command.cut");
             for (i=0;i<MAX_DIR;++i) {
                 edg.cb->t[i] = targl[i];
+                list_is_cut(targl[i]);
                 dd->t[edg.cp->y1][edg.cp->x1].il[i] = NULL;
+                
+                if (integration && (targl[i] != NULL)) {
+                    v_onstack("ed_clipboard_command.cut.integration");
+                    struct inst_loc *il = targl[i];
+                    while (il) {
+                        unsigned int i_inst = il->i;
+                        struct obj_arch *p_arch = Arch(oinst[i_inst]->arch);
+                        integration_inst_destroy(i_inst, p_arch);
+                        il = il->n;
+                    }
+                    v_upstack();
+                }
             }
             v_upstack();
         } else {
@@ -211,6 +290,8 @@ void ed_clipboard_command(int cmd) {
             VOIDRETURN();
         }
         
+        v_onstack("ed_clipboard_command.paste");
+        
         begin_inst_exvar_duplication();
         for (i=0;i<MAX_DIR;++i) {
             newl[i] = create_inst_loc_duplicate(edg.cb->t[i]);
@@ -220,10 +301,12 @@ void ed_clipboard_command(int cmd) {
         edg.cb->dup = 1;
         for (i=0;i<MAX_DIR;++i) {
             paste_list_at_location(edg.cb->t[i],
-                edg.cp->level, edg.cp->x1, edg.cp->y1, i);
+                edg.cp->level, edg.cp->x1, edg.cp->y1, i, integration);
         
             edg.cb->t[i] = newl[i];
         }
+        
+        v_upstack();
     }
     
     force_redraw(edg.subwin, 1);
@@ -237,7 +320,7 @@ void clipboard_mark(int tl, int tx, int ty) {
     edg.cp->level = tl;
     edg.cp->x1 = tx;
     edg.cp->y1 = ty;
-    VOIDRETURN();
+    VOIDRETURN();   
 }
 
 // mostly unused

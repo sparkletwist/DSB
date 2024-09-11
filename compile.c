@@ -44,7 +44,7 @@ static int write_bin(const char *data_str,
 
 static void *load_bin(const char *filename, unsigned int *fsize) {
     void *mem;
-    unsigned int sz;
+    unsigned long long int sz;
     PACKFILE *f;
 
     onstack("load_bin");
@@ -52,7 +52,7 @@ static void *load_bin(const char *filename, unsigned int *fsize) {
     v_onstack(filename);
     addstackc(')');
 
-    sz = file_size(filename);
+    sz = file_size_ex(filename); // Allegro complains file_size is deprecated
     if (sz <= 0) {
         program_puke("Null size");
         RETURN(NULL);

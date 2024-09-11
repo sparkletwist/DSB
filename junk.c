@@ -7,6 +7,8 @@
 #include "defs.h"
 #include "uproto.h"
 #include "gproto.h"
+#include "integration.h"
+#include "integration_dsb.h"
 
 extern const char *CSSAVEFILE[];
 char *Iname[4];
@@ -75,12 +77,18 @@ int show_the_end_screen(int b_s_reload) {
     
     onstack("show_the_end_screen");
     
-    while (ct<10) {
-        int r = systemtimer();
-        ct += r;
-        clear_to_color(soft_buffer, makecol(0, 0, 72));
-        scfix(1);
-        Sleep(5);
+    clear_to_color(soft_buffer, makecol(0, 0, 72));
+    scfix(1);
+    Sleep(5);
+    
+    if (gd.testing_mode == TESTMODE_ACTIVE) {
+        gd.testing_mode = TESTMODE_GAME_RESTART;
+        
+        updateok = systemtimer();
+        testing_reload();
+        unfreeze_sound_channels();
+        
+        RETURN(9);
     }
     
     the_end = pcxload("THE_END", NULL);
@@ -178,6 +186,11 @@ int show_front_door(void) {
     if (gd.p_lev[gd.a_party] < 0) {
         poop_out("Party is not placed properly.\nYour dungeon.lua needs a dsb_party_place() call.\n\nThis error could also be the result of Lua parsing errors\nin your dungeon or your custom Lua.\nCheck log.txt for error details.");
         RETURN(-2);
+    }
+    
+    if (gd.testing_mode) {
+        lc_parm_int("sys_game_start", 2, b_can_resume, LHTRUE);
+        RETURN(0);
     }
     
     b_can_resume = check_for_any_savegame();
@@ -469,14 +482,20 @@ void show_introduction(void) {
     int gig = DSBtrivialrand()%32;
 
     onstack("show_introduction");
-        
-    systemtimer();
+    
+    // i don't remember what this delay was for...
+    systemtimer();    
     while (ct<10) {
         int r = systemtimer();
         ct += r;
         clear_to_color(soft_buffer, makecol(0, 0, 72));
         scfix(1);
         Sleep(1);
+    }
+       
+    if (gd.testing_mode) {
+        lc_parm_int("sys_game_intro", 1, LHTRUE);
+        VOIDRETURN();
     }
     
     if (lc_parm_int("sys_game_intro", 0))
@@ -589,6 +608,11 @@ void show_introduction(void) {
 }
 #else
 void show_introduction(void) {
+    if (gd.testing_mode) {
+        lc_parm_int("sys_game_intro", 1, LHTRUE);
+        return;
+    }
+    
     lc_parm_int("sys_game_intro", 0);
 }
 #endif

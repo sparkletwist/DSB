@@ -920,13 +920,11 @@ void init_inst(unsigned int inum) {
     //fix_inst_int();
 }
 
-unsigned int next_object_inst(unsigned int archnum, int last_alloc) {
+unsigned int next_object_inst_nocallstack(int lookonly, unsigned int archnum, unsigned int last_alloc) {
     unsigned int onum = 1;
     int a_onum;
     int failed = 0;
     struct obj_arch *p_new_arch;
-    
-    onstack("next_object_inst");
     
     if (!gd.edit_mode)
         onum = last_alloc + 1;
@@ -934,24 +932,43 @@ unsigned int next_object_inst(unsigned int archnum, int last_alloc) {
     // things that can be opbys can't be < 20 to avoid weirdness with
     // triggers wanting custom data fields getting default messages
     if (onum < 20) {
-        p_new_arch = Arch(archnum);
-        if (p_new_arch->type >= OBJTYPE_MONSTER) {
+        if (archnum == 0xFFFFFFFF) {
             onum = 20;
+        } else {
+            p_new_arch = Arch(archnum);
+            if (p_new_arch->type >= OBJTYPE_MONSTER) {
+                onum = 20;
+            }
         }
     }
     
-    while (oinst[onum] != NULL || inst_dirty[onum]) {
+    if (gd.testing_mode) {
+        int testing_alloc_margin = 6000;
+        onum = (NUM_INST - testing_alloc_margin);
+    }
+    
+    while (oinst[onum] != NULL || inst_dirty[onum] || (onum == gd.esb_reserved_inst)) {
         ++onum;
         if (onum == NUM_INST) {
             onum = 1;
             program_puke("No free insts");
-            RETURN(0);
+            return 0;
         }
     }
     
     a_onum = onum;
-    init_inst(a_onum);
-    RETURN(a_onum);
+    
+    if (!lookonly)
+        init_inst(a_onum);
+        
+    return a_onum;
+}
+
+unsigned int next_object_inst(int lookonly, unsigned int archnum, unsigned int last_alloc) {
+    unsigned int rv;
+    onstack("next_object inst");
+    rv = next_object_inst_nocallstack(lookonly, archnum, last_alloc);
+    RETURN(rv);
 }
 
 void purge_dirty_list(void) {
@@ -1031,7 +1048,7 @@ int find_hash_arch(int t_obj_hash, char *objname) {
         myoh = myoh->n;
     }
     
-    RETURN(-1);    
+    RETURN(-1);  
 }
 */
 
@@ -1485,6 +1502,13 @@ void register_object(lua_State *LUA, int graphical) {
         o_ptr->inview[0] = getluaoptbitmap(nameref, "same_square");
         o_ptr->inview[1] = getluaoptbitmap(nameref, "near_side");
         
+        // added in 0.78
+        o_ptr->extraview[0] = getluaoptbitmap(nameref, "other_side");
+        o_ptr->extraview[1] = getluaoptbitmap(nameref, "other_side_med");
+        o_ptr->extraview[2] = getluaoptbitmap(nameref, "other_side_far");  
+        if (o_ptr->extraview[0] && !o_ptr->sideview[0])
+            DSBLerror(LUA, "%s: Cannot have other_side without side", nameref);     
+        
         if (o_ptr->rhack & RHACK_STAIRS) {
             o_ptr->outview[0] = getluaoptbitmap(nameref, "xside");
             o_ptr->outview[1] = getluaoptbitmap(nameref, "xside_med");
@@ -1912,6 +1936,30 @@ void place_instance(unsigned int inst, int lev, int xx, int yy, int dir, int pt)
         inst_putinside(xx, inst, yy);     
         put = 1;
         
+        if (gd.q_put_away_zone) {
+            unsigned int container_inst = xx;
+            struct inst *ptr_container_inst = oinst[container_inst];
+            struct obj_arch *ptr_container_arch = Arch(ptr_container_inst->arch);
+
+            if (ptr_container_arch->type == OBJTYPE_THING) {            
+                call_member_func(container_inst, "inst_incoming", inst);
+            }
+
+            if (ptr_container_inst->level == LOC_IN_OBJ) {
+                unsigned int outer_container_inst;
+                int prevobj_lev = ptr_container_inst->level;
+                while (prevobj_lev == LOC_IN_OBJ) {
+                    outer_container_inst = ptr_container_inst->x;
+                    ptr_container_inst = oinst[outer_container_inst];
+                    prevobj_lev = ptr_container_inst->level;
+                }
+            }
+            if (ptr_container_inst->level == LOC_CHARACTER) {
+                int px = ptr_container_inst->x-1;
+                gd.champs[px].load = sum_load(px);    
+            }
+        }
+        
         check_sb_to_queue(inst, LOC_IN_OBJ);
         sb_queued = 1;
     }
@@ -2157,7 +2205,8 @@ void inst_destroy(unsigned int inst, int d_i_p) {
     if (!d_i_p && p_inst->level != LOC_LIMBO)
         limbo_instance(inst);
 
-    destroy_lua_exvars("exvar", inst);
+    if (d_i_p != 2)
+        destroy_lua_exvars("exvar", inst);
     
     // queued after_from? handle it... or just get rid of it.
     if (!d_i_p) {
@@ -2190,6 +2239,9 @@ void inst_destroy(unsigned int inst, int d_i_p) {
     
     if (d_i_p != 4)
         dsbfree(p_inst);
+        
+    if (gd.integration_action)
+        integration_inst_destroy(inst, p_arch);
         
     inst_dirty[inst] = 1;
     oinst[inst] = NULL;
@@ -2276,11 +2328,9 @@ void regular_swap(unsigned int inst, unsigned int objarch) {
     if (p_inst->level == LOC_CHARACTER) {
         int px = p_inst->x-1;
         gd.champs[px].load = sum_load(px);
-        determine_load_color(px);
     } else if (p_inst->level == LOC_MOUSE_HAND) {
         int lc = gd.party[gd.leader] - 1;
         gd.champs[lc].load = sum_load(lc);
-        determine_load_color(lc);
     }
     
     VOIDRETURN();
@@ -2293,6 +2343,8 @@ unsigned int create_instance(unsigned int objarch,
     
     onstack("create_instance");
 
+    begin_integration_cs();
+    
     if (gd.force_id) {
         if (UNLIKELY(oinst[gd.force_id])) {
             struct inst *p_p_inst = oinst[gd.force_id];
@@ -2309,13 +2361,28 @@ unsigned int create_instance(unsigned int objarch,
             poop_out(buf);
             VOIDRETURN();
         }
+        
+        if (gd.force_id == gd.esb_reserved_inst) {
+            gd.esb_reserved_inst = 0;
+        }
 
         inst = gd.force_id;
         init_inst(inst);
         
-    } else
-        inst = next_object_inst(objarch, gd.last_alloc);
-        
+    } else {
+        if (gd.integration_action) {
+            char idebug[32];
+            inst = get_integration_inst(); // should never be called from DSB, only ESB
+            sprintf(idebug, "integration(%u)", inst);
+            stackbackc('.');
+            v_onstack(idebug);
+            
+            init_inst(inst);
+        } else {
+            inst = next_object_inst(0, objarch, gd.last_alloc);
+        }
+    }
+    
     gd.force_id = 0;
     inst_add_to_table(inst, objarch, lev, dir);
     if (!gd.edit_mode) {
@@ -2331,10 +2398,24 @@ unsigned int create_instance(unsigned int objarch,
     
     if (oinst[inst]) {
         if (!b_force_instant && gd.queue_rc && lev >= 0) {
-            instmd_queue(INSTMD_INST_MOVE, lev, xx, yy, dir, inst, 0x100);
-        } else
+            instmd_queue(INSTMD_INST_MOVE_ENABLE, lev, xx, yy, dir, inst, 0x100);
+        } else {
+            struct obj_arch *new_arch = Arch(objarch);
             place_instance(inst, lev, xx, yy, dir, 0x100);
+            if (lev >= 0 && !(oinst[inst]->gfxflags & G_INACTIVE)) {
+                enable_inst(inst, 1);
+            }
+            
+            // as before, should never be called from DSB, only ESB
+            if (gd.integration_action) {
+                struct obj_arch *new_arch = Arch(objarch);
+                finalize_integration_obj_add(inst, new_arch->luaname, lev, xx, yy, dir); 
+            }
+        }
     }
+    
+    end_integration_cs();
+    
     RETURN(inst);
 }
 
@@ -2458,12 +2539,8 @@ void msg_chain_delink(unsigned int base_id, unsigned int fwd_to) {
 
 // index is based on INTERNAL values
 // -- NOT USED ANYMORE. THIS IS ALL LUA-BASED NOW.
+/*
 void determine_load_color(int who) {
-    struct champion *me;
-    
-    return;
-}
-    /*
     onstack("determine_load_color");
     
     lua_getglobal(LUA, "sys_calc_loadcolor");

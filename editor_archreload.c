@@ -16,6 +16,8 @@
 #include "editor_hwndptr.h"
 #include "editor_gui.h"
 #include "editor_menu.h"
+#include "integration.h"
+#include "integration_esb.h"
 
 #define VL_B_LOAD(FS) \
     if (luaL_loadfile(V_Lua, bfixname(FS))) {\
@@ -198,6 +200,17 @@ void ed_reload_all_arch(void) {
     FILE *ftester;
     int push_exestate;
     onstack("ed_reload_all_arch");
+    
+    if (dsb_is_running()) {
+        int z = MessageBox(sys_hwnd, "DSB will need to shut down to reload archs. Do this now?",
+            "Confirm", MB_ICONEXCLAMATION|MB_YESNO);
+
+        if (z != 6) {
+            VOIDRETURN();
+        }  
+    }
+    
+    force_shutdown_dsb();
     
     GetCurrentDirectory(MAX_PATH, stored_directory);
     SetCurrentDirectory(edg.curdir);

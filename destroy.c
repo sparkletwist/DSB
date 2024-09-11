@@ -90,7 +90,6 @@ void destroy_all_subrenderers() {
     destroy_system_subrenderers();
 
     if (gfxctl.i_subrend) {
-        destroy_bitmap(gfxctl.i_subrend);
         gfxctl.i_subrend = NULL;
     }
 

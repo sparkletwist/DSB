@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <allegro.h>
 #include <winalleg.h>
@@ -17,10 +16,7 @@
 #include "editor_menu.h"
 #include "editor_shared.h"
 
-extern HWND sys_hwnd;
-
 extern lua_State *LUA;
-extern struct editor_global edg;
 extern struct global_data gd;
 extern int Gmparty_flags;
 
@@ -35,8 +31,7 @@ void inst_out(FILE *ef, unsigned int inst, struct inst *p_inst, int rc) {
         v_onstack("inst_out");
 
     if (rc > 20) {
-        MessageBox(sys_hwnd, "Recursion Terminated",
-            "Error", MB_ICONEXCLAMATION);
+        poop_out("RECURSION");
         return;
     }
 
@@ -57,31 +52,28 @@ void inst_out(FILE *ef, unsigned int inst, struct inst *p_inst, int rc) {
         fprintf(ef, "IN_OBJ, ");
     else
         fprintf(ef, "%ld%s", p_inst->level, ", ");
-
+    /*
     if (p_inst->level == LOC_CHARACTER) {
         int cid = p_inst->x - 1;
         fprintf(ef, "%s", edg.c_ext[cid].desg);
     } else {
+        */
         fprintf(ef, "%ld", p_inst->x);
-    }
+    //}
 
     fprintf(ef, ", %ld, %ld)\n", p_inst->y, p_inst->tile);
-    
-    if (p_inst->gfxflags || p_inst->facedir || p_inst->charge || p_inst->crop || p_inst->frame) {
-        const char *disablestr;
-        
-        if (p_inst->gfxflags & OF_INACTIVE)
-            disablestr = "true";
-        else
-            disablestr = "false";
-            
-        fprintf(ef, "dsb_objset(%lu, false, %s, %ld, %ld, %ld, %ld, %lu)\n", inst, disablestr,
-            p_inst->gfxflags & ~(OF_INACTIVE),
-            p_inst->facedir, p_inst->charge, p_inst->crop, p_inst->frame);
-    }
-            
+    if (p_inst->gfxflags & OF_INACTIVE)
+        fprintf(ef, "dsb_disable(%ld)\n", inst);
+    if (p_inst->gfxflags & ~(OF_INACTIVE))
+        fprintf(ef, "dsb_set_gfxflag(%ld, %lu)\n", inst, p_inst->gfxflags & ~(OF_INACTIVE)); 
     if (p_inst->ai && p_inst->ai->d_hp)
         fprintf(ef, "mon_hp(%ld, %ld)\n", inst, p_inst->ai->hp);
+    if (p_inst->facedir != 0)
+        fprintf(ef, "dsb_set_facedir(%ld, %ld)\n", inst, p_inst->facedir);
+    if (p_inst->charge != 0)
+        fprintf(ef, "dsb_set_charge(%ld, %ld)\n", inst, p_inst->charge);
+    if (p_inst->crop != 0)
+        fprintf(ef, "dsb_set_crop(%ld, %ld)\n", inst, p_inst->crop);
 
     if (p_inst->inside_n) {
         int ic;
@@ -137,9 +129,7 @@ void esb_write_serialized_xvt(FILE *ef, int id) {
     VOIDRETURN();
 }
 
-void editor_export_dungeon(const char *fname, int fortesting) {
-    int nobackup = fortesting;
-    int place_idx;
+void editor_export_dungeon(const char *fname) {
     int last_alloc = 0;
     char tdbuffer[256];
     FILE *ef;
@@ -147,11 +137,10 @@ void editor_export_dungeon(const char *fname, int fortesting) {
 
     onstack("editor_export_dungeon");
     
-    if (!nobackup) {
-        sprintf(tdbuffer, "%s%s", fname, ".bak");
-        CopyFile(fname, tdbuffer, 1);
-    }
-    
+    /*
+    sprintf(tdbuffer, "%s%s", fname, ".bak");
+    CopyFile(fname, tdbuffer, 1);
+    */
     memset(tdbuffer, 0, sizeof(tdbuffer));
     
     ef = fopen(fname, "w");
@@ -165,7 +154,7 @@ void editor_export_dungeon(const char *fname, int fortesting) {
     fprintf(ef, " particularly good results.\n]]\n\n");
 
     luastacksize(6);
-    lua_getglobal(LUA, "_ESBWALLSET_NAMES");
+    //lua_getglobal(LUA, "_ESBWALLSET_NAMES");
     for(i=0;i<gd.dungeon_levels;++i) {
         const char *ws_str;
         int yy;
@@ -193,32 +182,27 @@ void editor_export_dungeon(const char *fname, int fortesting) {
                 fprintf(ef, "\",\n");
         }
         
-        if (dun[i].level_flags != 0) {
-            fprintf(ef, "dsb_level_flags(%d, %u)\n", i, dun[i].level_flags);            
+        if (dun[i].tint != 0) {
+            int t = dun[i].tint;
+            fprintf(ef, "dsb_level_tint(%d, { %d, %d, %d })\n",
+                i, getr(t), getg(t), getb(t));
         }
         
-        if (dun[i].tint != 0 || dun[i].tint_intensity != DSB_DEFAULT_TINT_INTENSITY) {
-            int t = dun[i].tint;
-            if (dun[i].tint_intensity != DSB_DEFAULT_TINT_INTENSITY) {
-                fprintf(ef, "dsb_level_tint(%d, { %d, %d, %d }, %d)\n",
-                    i, getr(t), getg(t), getb(t), dun[i].tint_intensity);
-            } else {
-                fprintf(ef, "dsb_level_tint(%d, { %d, %d, %d })\n",
-                    i, getr(t), getg(t), getb(t));
-            }
-        }
-                
+        /*
         lua_pushinteger(LUA, i);
         lua_gettable(LUA, -2);
         if (!lua_isstring(LUA, -1)) {
+            fprintf(ef, "--- SAVE ERROR - making default\n");
             ws_str = "default";
         } else
             ws_str = lua_tostring(LUA, -1);
         fprintf(ef, "dsb_level_wallset(%d, %s%s)\n", i, "wallset.", ws_str);
         lua_pop(LUA, 1);
+        */
     }
-    lua_pop(LUA, 1);
+    //lua_pop(LUA, 1);
     
+    /*
     lua_getglobal(LUA, "_ESBLEVELUSE_WALLSETS");
     for(i=0;i<gd.dungeon_levels;++i) {
         int yy;
@@ -240,14 +224,18 @@ void editor_export_dungeon(const char *fname, int fortesting) {
         }
     }
     lua_pop(LUA, 1);
+    */
     
     for(i=0;i<gd.num_champs;++i) {
         struct champion *me = &(gd.champs[i]);
-        if (edg.c_ext[i].desg) {
+        if (me && me->port_name) {
+            char designation[20];
             int j;
             
+            sprintf(designation, "CH_%02d", i);
+            
             fprintf(ef, "dsb_add_champion(%lu, \"%s\", \"%s\", \"%s\", \"%s\"",
-                i+1, edg.c_ext[i].desg, me->port_name, me->name,
+                i+1, designation, me->port_name, me->name,
                 me->lastname);
 
             for(j=0;j<MAX_BARS;++j)
@@ -256,25 +244,15 @@ void editor_export_dungeon(const char *fname, int fortesting) {
             for(j=0;j<MAX_STATS;++j)
                 fprintf(ef, ", %lu", me->maxstat[j]);
                 
-            for(j=0;j<gd.max_class;++j) {
-                int sub;
-                fprintf(ef, ", {%lu", determine_mastery(1, i, j, 0, 0));
-                for(sub=0;sub<gd.max_subsk[j];sub++) {
-                    fprintf(ef, ",%lu", determine_mastery(1, i, j, sub+1, 0));
-                }
-                fprintf(ef, "}");
-            }
+            for(j=0;j<gd.max_class;++j)
+                fprintf(ef, ", %lu", determine_mastery(i, j, 0, 0));
 
             fprintf(ef, ")\n");
-        
-            if (me->method_name && strcmp(me->method_name, "unarmed_methods")) {
-                fprintf(ef, "dsb_replace_methods(%lu, \"%s\")\n", i+1, me->method_name);
-            }
         }
     }
-
-    // ch_exvars right after champions
-    // in case their inventory does things to them
+    
+    // ch_exvars right after champions, in case stuff their
+    // inventory does to them overrides
     luastacksize(12);
     lua_getglobal(LUA, "ch_exvar");
     fprintf(ef, "ch_exvar = {\n");
@@ -297,30 +275,24 @@ void editor_export_dungeon(const char *fname, int fortesting) {
         struct inst *p_inst = oinst[i];      
         if (p_inst) {
             if (p_inst->level <= LOC_CHARACTER) {
-                if ((edg.editor_flags & EEF_NOLIMBOSAVE) &&
+                if ((1) &&
                     p_inst->level <= LOC_LIMBO &&
                     p_inst->level != LOC_PARCONSPC) 
                 {
-                    // this inst isn't being saved
-                    // so if it has an exvar let's nuke it
-                    lc_parm_int("__void_exvar", 1, i);
                     continue;
-                
-                } else if (p_inst->esb_iscut) {
-                    lc_parm_int("__void_exvar", 1, i);
-                    continue;                       
                 }
-                
                 inst_out(ef, i, p_inst, 0);
             }
         }
     }
+    /*
     for(i=0;i<gd.num_champs;++i) {
         struct champion *me = &(gd.champs[i]);
         if (edg.c_ext[i].desg && me->exinst) {
             fprintf(ef, "dsb_set_exviewinst(%ld, %ld)\n", i+1, me->exinst);
         }
     }
+    */
     
     for(i=0;i<gd.dungeon_levels;++i) {
         int yy;
@@ -366,7 +338,7 @@ void editor_export_dungeon(const char *fname, int fortesting) {
         fprintf(ef, "dsb_set_mpartyflag(%lu)\n", Gmparty_flags);
     } 
     
-    fprintf(ef, "EDITOR_FLAGS = %lu\n", edg.editor_flags);
+    //fprintf(ef, "EDITOR_FLAGS = %lu\n", edg.editor_flags);
     
     for(i=0;i<4;i++) {
         if (gd.party[i]) {
@@ -375,27 +347,14 @@ void editor_export_dungeon(const char *fname, int fortesting) {
         }
     }
     
-    // clean up cut objects on reload
-    for(i=0;i<NUM_INST;++i) {
-        struct inst *p_inst = oinst[i];      
-        if (p_inst && p_inst->esb_iscut) {
-            fprintf(ef, "dsb_clean_up_target_exvars(%d)\n", i);               
-        }
-    }
-    
-    if (fortesting)
-        place_idx = 1;
-    else
-        place_idx = 0;
-    
     fprintf(ef, "dsb_party_place(%d, %d, %d, %d)\n",
-        gd.p_lev[place_idx], gd.p_x[place_idx], gd.p_y[place_idx], gd.p_face[place_idx]);
+        gd.p_lev[0], gd.p_x[0], gd.p_y[0], gd.p_face[0]);
 
-    fprintf(ef, "\n");    
+    fprintf(ef, "\n");
     fclose(ef);
     
     sprintf(tdbuffer, "%s saved.", fname);
-    SetWindowText(edg.infobar, tdbuffer);
+    //SetWindowText(edg.infobar, tdbuffer);
     
     VOIDRETURN();
 }

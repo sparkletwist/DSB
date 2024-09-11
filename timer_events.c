@@ -605,7 +605,7 @@ void run_timers(struct timer_event *cte, struct timer_event **p_root_te,
     
     while (cte != NULL) {
         
-        if (cte->type != EVENT_DO_FUNCTION) {
+        if (!(flags & TE_NOTLOCKABLE) && (cte->type != EVENT_DO_FUNCTION)) {
             int larrayval = -1;
             
             if (gd.gl->lockc[LOCK_ALL_TIMERS]) {

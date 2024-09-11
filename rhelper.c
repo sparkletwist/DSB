@@ -193,7 +193,7 @@ void show_name(BITMAP *scx, unsigned int inst, int x, int y, int col, int flags)
             lc_call_topstack(3, rfname);
         
             make_cz(74+idz, x, y, gfxctl.SR[idz].sizex, gfxctl.SR[idz].sizey, 0);
-            draw_sprite(scx, gfxctl.SR[idz].rtarg->b, x, y);              
+            draw_sr_with_alpha(scx, idz, x, y);              
             
         } else {
             textout_ex(scx, font, sdname, x, y, col, -1);
@@ -207,24 +207,55 @@ void show_name(BITMAP *scx, unsigned int inst, int x, int y, int col, int flags)
 }
 
 void setup_res_rei_cz(void) {
-    if (gd.viewmode < 3) {
-        int singlezone = ZONE_RES;
-        
-        if (gd.viewmode == REINCARNATE)
-            singlezone = ZONE_REI;
-            
-        make_cz(singlezone, gd.vxo+gii.srx+6, gd.vyo + gd.vyo_off + gii.sry, 231, 117, 0); 
+    BITMAP *zzone = gfxctl.resrei.resrei;
+    int zzh;
+    int sbx, sby;
+    
+    if (gfxctl.resrei.subrend_mode) {
+        sbx = gd.vxo + gii.srx + gfxctl.resrei.x;
+        sby = gd.vyo + gd.vyo_off + gii.sry + gfxctl.resrei.y;
     } else {
-        make_cz(ZONE_RES, gd.vxo+gii.srx+6, gd.vyo + gd.vyo_off + gii.sry, 113, 117, 0);
-        make_cz(ZONE_REI, gd.vxo+gii.srx+124, gd.vyo + gd.vyo_off + gii.sry, 113, 117, 0);    
+        sbx = gfxctl.resrei.x;
+        sby = gfxctl.resrei.y;
     }
     
-    make_cz(ZONE_CANCEL, gd.vxo+gii.srx+6, gd.vyo + gd.vyo_off + gii.sry + 120, 231, 25, 0);  
+    if (gd.viewmode < 3) {
+        zzone = gfxctl.resrei.res;
+        int singlezone = ZONE_RES;
+        
+        if (gd.viewmode == REINCARNATE) {
+            zzone = gfxctl.resrei.rei;
+            singlezone = ZONE_REI;
+        }
+        
+        zzh = (zzone->h*8)/10;
+            
+        make_cz(singlezone, sbx, sby, zzone->w - 1, zzh, 0); 
+    } else {
+        int zzw = zzone->w;
+        
+        zzh = (zzone->h*8)/10;
+        
+        make_cz(ZONE_RES, sbx, sby, zzw/2, zzh, 0);
+        make_cz(ZONE_REI, sbx+(zzw/2), sby, zzw/2, zzh, 0);    
+    }
+    
+    make_cz(ZONE_CANCEL, sbx, sby + zzh + 1, zzone->w - 1, zzone->h - (zzh+1), 0);  
 }
 
 void setup_rei_name_entry_cz(void) {
-
-    make_cz(ZONE_REI, gd.vxo+gii.srx+192, gd.vyo + gd.vyo_off + gii.sry + 122, 41, 21, 0);
+    BITMAP *zzone = gfxctl.resrei.name;
+    int sbx, sby;
+    
+    if (gfxctl.resrei.subrend_mode) {
+        sbx = gd.vxo + gii.srx + gfxctl.resrei.x;
+        sby = gd.vyo + gd.vyo_off + gii.sry + gfxctl.resrei.y;
+    } else {
+        sbx = gfxctl.resrei.x;
+        sby = gfxctl.resrei.y;
+    }    
+    
+    make_cz(ZONE_REI, sbx+186, sby + 122, 41, 21, 0);
 }
 
 void getgiidimensions(struct iidesc *ii, int *w, int *h, int defaultw, int defaulth) {
@@ -526,7 +557,7 @@ void draw_spell_interface(BITMAP *scx, int i_index, int vs) {
     lua_pushboolean(LUA, forbiddenstate);
     lc_call_topstack(4, rfname);
     
-    draw_sprite(scx, gfxctl.SR[i_index].rtarg->b, px, py);
+    draw_sr_with_alpha(scx, i_index, px, py);
     
     if (!gd.gl->lockc[LOCK_MAGIC]) {
         make_cz(74+i_index, px, py,
@@ -755,6 +786,22 @@ int find_remove_from_pos_tolerant(int ap, int i, int *rx, int *ry) {
     RETURN(ecv);
 }
 
+void draw_sr_with_alpha(BITMAP *scx, int i_index, int px, int py) {
+    struct animap *sr;
+    onstack("draw_sr_with_alpha");
+    
+    sr = gfxctl.SR[i_index].rtarg;
+    
+    if (sr->flags & AM_HASALPHA) {
+        set_alpha_blender();
+        draw_trans_sprite(scx, sr->b, px, py);
+    } else {
+        draw_sprite(scx, sr->b, px, py);
+    }
+    
+    VOIDRETURN();   
+}
+
 void draw_movement_arrows(BITMAP *scx, int i_index, int vs) {
     int px, py;
     const char *rfname = "sys_render_arrows";
@@ -784,7 +831,7 @@ void draw_movement_arrows(BITMAP *scx, int i_index, int vs) {
             gfxctl.SR[i_index].sizex, gfxctl.SR[i_index].sizey, 0);
     }
     
-    draw_sprite(scx, gfxctl.SR[i_index].rtarg->b, px, py);
+    draw_sr_with_alpha(scx, i_index, px, py);
     
     VOIDRETURN();
 }
@@ -797,6 +844,7 @@ void draw_user_bitmaps(BITMAP *scx, int i_start, int vs) {
     
     for(i_index=i_start;i_index<NUM_SR;++i_index) {
         int px, py;
+        int i_priority = 0;
         
         if (!(gfxctl.SR[i_index].flags & SRF_ACTIVE)) {
             continue;
@@ -814,12 +862,18 @@ void draw_user_bitmaps(BITMAP *scx, int i_start, int vs) {
         setup_lua_bitmap(LUA, gfxctl.SR[i_index].rtarg);
         lua_pushstring(LUA, gfxctl.SR[i_index].renderer_name);
         lua_pushboolean(LUA, (vs >= VIEWSTATE_INVENTORY));
-        lc_call_topstack(3, rfname);
+        i_priority = lc_call_topstack(3, rfname);
+        
+        if (i_priority) {
+            gfxctl.SR[i_index].flags |= SRF_PRIORITY;
+        } else {
+            gfxctl.SR[i_index].flags &= ~(SRF_PRIORITY);  
+        }
         
         make_cz(74+i_index, px, py,
             gfxctl.SR[i_index].sizex, gfxctl.SR[i_index].sizey, 0);
         
-        draw_sprite(scx, gfxctl.SR[i_index].rtarg->b, px, py);        
+        draw_sr_with_alpha(scx, i_index, px, py);        
     }
 
     VOIDRETURN();    
@@ -835,6 +889,7 @@ int draw_interface(int softmode, int interface_vs, int really) {
     int rv = 0;
     int rtx = 0;
     int rty = 0;
+    int debug_clickzones = 0;
     
     onstack("draw_interface");
 
@@ -983,9 +1038,9 @@ int draw_interface(int softmode, int interface_vs, int really) {
     SKIP_MAIN_RENDER_AMETHOD:     
     if (gfxctl.SR[SR_METHODS].flags & SRF_ACTIVE) {    
         rtx = gfxctl.SR[SR_METHODS].rtx;
-        rty = gfxctl.SR[SR_METHODS].rty;    
-        draw_sprite(scx, gfxctl.SR[SR_METHODS].rtarg->b, rtx, rty);
-    
+        rty = gfxctl.SR[SR_METHODS].rty;            
+        draw_sr_with_alpha(scx, SR_METHODS, rtx, rty);
+
         if (!gd.gl->lockc[LOCK_ATTACK]) {
             make_cz(74, rtx, rty,
                 gfxctl.SR[SR_METHODS].sizex, gfxctl.SR[SR_METHODS].sizey, 0);
@@ -1004,7 +1059,7 @@ int draw_interface(int softmode, int interface_vs, int really) {
     
     draw_guy_icons(scx, gfxctl.guy_x + gfxctl.guy_off_x, gfxctl.guy_y + gfxctl.guy_off_y, 0);
 
-    if (debug) {
+    if (debug_clickzones || debug) {
         release_bitmap(scx);
         draw_clickzones(softmode);
         acquire_bitmap(scx);
@@ -1078,7 +1133,7 @@ int draw_interface(int softmode, int interface_vs, int really) {
         draw_mouseptr(scx, NULL, 1);
     } else {    
         if (gd.mouseobj)
-            rv = draw_objicon(scx, gd.mouseobj, mouse_x-16, mouse_y-16, 1);
+            rv = draw_objicon(scx, 0, gd.mouseobj, mouse_x-16, mouse_y-16, 1);
         else {
             struct animap *b_h;
             struct champion *ld = &(gd.champs[gd.party[gd.leader]-1]);
@@ -1344,7 +1399,7 @@ void do_gui_update(void) {
     }
 }
 
-void draw_name_entry(BITMAP *scx) {
+void draw_name_entry(BITMAP *scx, int isbx, int isby) {
     FONT *font = ROOT_SYSTEM_FONT;
     int who_look = gd.who_look;
     struct champion *me = &(gd.champs[gd.party[who_look] - 1]);
@@ -1353,13 +1408,16 @@ void draw_name_entry(BITMAP *scx) {
     int cl = makecol(182, 182, 182);
     int i;
     
+    // fix coordinate relative to a hardcoded constant
+    isbx -= 6;
+    
     for(i=0;i<7;++i) {
         if (me->name[i] == '\0') {
             int icl = cl;
             if (gd.curs_pos < 7 && gd.curs_pos == i)
                 icl = makecol(255, 255, 0);
                 
-            textout_ex(scx, font, "_", bx + gii.srx + 154 + i*12, by + gii.sry + 4, icl, -1);
+            textout_ex(scx, font, "_", isbx + 154 + i*12, isby + 4, icl, -1);
         }
     }
     
@@ -1370,17 +1428,18 @@ void draw_name_entry(BITMAP *scx) {
             if (gd.curs_pos >= 7 && (gd.curs_pos - 7) == i)
                 icl = makecol(255, 255, 0);
             
-            textout_ex(scx, font, "_", bx + gii.srx + 10 + i*12, by + gii.sry + 40, icl, -1);
+            textout_ex(scx, font, "_", isbx + 10 + i*12, isby + 40, icl, -1);
         }
     }
     
-    textout_ex(scx, font, me->name, bx + gii.srx + 154, by + gii.sry + 4, cl, -1);
-    textout_ex(scx, font, me->lastname, bx + gii.srx + 10, by + gii.sry + 40, cl, -1);
+    textout_ex(scx, font, me->name, isbx + 154, isby + 4, cl, -1);
+    textout_ex(scx, font, me->lastname, isbx + 10, isby + 40, cl, -1);
 }
 
 int check_subgfx_state(int vs) {
     int cc;
     int tlight;
+    int srn;
     struct dungeon_level *dd;
     
     if (vs != VIEWSTATE_DUNGEON)
@@ -1401,13 +1460,26 @@ int check_subgfx_state(int vs) {
         --gd.softframecnt;
         return 1;
     }
-        
+            
     dd = &(dun[gd.p_lev[gd.a_party]]);
     
     // check lightlevel
     tlight = calc_total_light(dd);
     if (tlight < 90)
         return 1;
+        
+    for(srn=0;srn<NUM_SR+4;++srn) {
+        sys_rend *csr;
+        
+        if (srn >= NUM_SR)
+            csr = &(gfxctl.ppos_r[srn-NUM_SR]);
+        else
+            csr = &(gfxctl.SR[srn]);
+        
+        if ((csr->flags & SRF_ACTIVE) && csr->rtarg && (csr->rtarg->flags & AM_HASALPHA)) {
+            return 1;
+        }   
+    }
     
     // check overlay graphics
     for(cc=0;cc<gd.num_pconds;++cc) {
@@ -1658,6 +1730,10 @@ void activate_gui_zone(char *dstr, int zid, int x, int y, int w, int h, int flag
     } else if (zid == -4) {
         gfxctl.guy_x = x;
         gfxctl.guy_y = y;
+    // special resrei id (res_rei)
+    } else if (zid == -5) {
+        gfxctl.resrei.x = x;
+        gfxctl.resrei.y = y;
     } else {
         gfxctl.SR[zid].renderer_name = dstr;
         gfxctl.SR[zid].rtarg = create_vanimap(w, h); 
@@ -1678,8 +1754,13 @@ void internal_gui_command(const char *cmdstr, int val) {
     
     onstack("internal_gui_command");
     
-    if (cmd == 'c') {
+    if (cmd == 'a') {
+        gfxctl.resrei.subrend_mode = !!val;
+    } else if (cmd == 'c') {
+        if (val > 16) val = 16;
         gfxctl.console_lines = val;
+    } else if (cmd == 'l') {
+        gfxctl.console_lineheight = val;
     } else if (cmd == 'i') {
         gfxctl.itemname_drawzone = val;
     } else if (cmd == 'p') {

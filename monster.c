@@ -454,7 +454,7 @@ void mon_rotateteam(int rmethod, struct inst_loc *team, int rdir, int frozenalso
         }
     }
     
-    if (rmethod & ROTATE_POST) {    
+    if (rmethod & ROTATE_POST) {  
         while (team != NULL) {
             struct inst *pm = oinst[team->i];
             
@@ -720,9 +720,7 @@ int lmon_dirmove(int inst, int dir, int fdir) {
         
         if (!move_handled) {
             int lev = p_m->level; // in case someone moves the boss
-            unsigned int tag = ((inst << 16) | (ty << 8) | ty);
             while (team != NULL) {
-                //oinst[team->i]->ai->groupid = tag;
                 mon_move(team->i, lev, tx, ty, -1, (team->i == inst), 0);
                 team = team->n;
             }

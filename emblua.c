@@ -592,7 +592,7 @@ int luawallset(lua_State *LUA, int stackarg, const char *fname) {
 
 /* This one is a mess too, but the usual invoking method is
     getluaoptbitmap() which takes care of it                */
-struct animap *luaoptbitmap(lua_State *LUA, int stackarg, char *fname) {
+struct animap *luaoptbitmap(lua_State *LUA, int stackarg, const char *fname) {
     int tid;
     char *xstr;
     struct animap *lbmp;
@@ -639,7 +639,7 @@ struct animap *luaoptbitmap(lua_State *LUA, int stackarg, char *fname) {
         RETURN(NULL);
 }
 
-unsigned int luargbval(lua_State *LUA, int stackarg, const char *fname, int p) {
+unsigned int luargbval_seta(lua_State *LUA, int stackarg, const char *fname, int alphaval, int p) {
     unsigned char rgbv[3];
     int i;
  
@@ -662,12 +662,20 @@ unsigned int luargbval(lua_State *LUA, int stackarg, const char *fname, int p) {
         lua_pop(LUA, 1);
     }
     
-    return(makecol(rgbv[0], rgbv[1], rgbv[2]));
+    if (alphaval == -1) {
+        return(makecol(rgbv[0], rgbv[1], rgbv[2]));
+    } else {
+        return(makeacol(rgbv[0], rgbv[1], rgbv[2], alphaval));
+    }
     
     LUA_RGB_ERROR:
     DSBLerror(LUA, "%s requires {R,G,B}", fname);
     return 0;      
 }
+
+unsigned int luargbval(lua_State *LUA, int stackarg, const char *fname, int p) {
+    return luargbval_seta(LUA, stackarg, fname, -1, p);
+};
 
 unsigned int luahsvval(lua_State *LUA, int stackarg, const char *fname, int p,
     float *h, float *s, float *v) 
@@ -1129,6 +1137,15 @@ int call_member_func4(unsigned int inst, const char *funcname,
     // all done
     RETURN(rv);
 }
+
+int lc_dostring(const char *cmdstr) {
+    onstack("lua_call.dostring");
+    if (luaL_dostring(LUA, cmdstr) != 0) {
+        lua_function_error("__", lua_tostring(LUA, -1)); 
+        RETURN(1);
+    } 
+    RETURN(0);
+}
     
 int lc_parm_int(const char *fname, int parms, ...) {
     int rv;
@@ -1341,3 +1358,12 @@ void DSBLerror_nonfatal(lua_State *LUA, const char *fmt, ...) {
 
     v_upstack();
 }
+
+void destroy_all_exvars(void) {
+    lua_newtable(LUA);
+    lua_setglobal(LUA, "exvar");
+    
+    lua_newtable(LUA);
+    lua_setglobal(LUA, "ch_exvar");     
+}
+

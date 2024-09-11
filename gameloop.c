@@ -14,6 +14,8 @@
 #include "mparty.h"
 #include "render.h"
 #include "localtext.h"
+#include "integration.h"
+#include "integration_dsb.h"
 
 int viewstate = 0;
 
@@ -49,6 +51,8 @@ extern struct clickzone cz[NUM_ZONES];
 extern struct inst *oinst[NUM_INST];
 extern int Gmparty_flags;
 extern istack istaparty;
+
+extern CRITICAL_SECTION Integration_CS;
     
 void renderer_fixes(int viewstate) {
     int i;
@@ -473,6 +477,9 @@ int DSBgameloop(int new_game) {
         import_shading_info();  
         import_door_draw_info();        
     }
+    
+    if (gd.testing_mode == TESTMODE_GAME_RESTART)
+        gd.testing_mode = TESTMODE_ACTIVE;
         
     gd.mouse_hidden = HIDEMOUSEMODE_SHOW;
     clear_mouse_override();
@@ -506,9 +513,7 @@ int DSBgameloop(int new_game) {
 
             // don't advance a frozen game
             if (viewstate < VIEWSTATE_FROZEN) {
-                gd.framecounter++;
-                if (gd.framecounter >= FRAMECOUNTER_MAX)
-                    gd.framecounter = 0;
+                increment_framecounters();
                     
                 if ((gd.framecounter % T_BPS) == 0) {
                     lc_parm_int("sys_tick_second", 0);
@@ -600,6 +605,13 @@ int DSBgameloop(int new_game) {
                 gd.process_tick_mode = process_tick;
                                 
                 purge_dirty_list();
+                
+                if (gd.testing_mode) {
+                    EnterCriticalSection(&Integration_CS);
+                    flush_integration_queue();
+                    flush_instmd_queue();
+                    LeaveCriticalSection(&Integration_CS);
+                }
                 
                 if (sndctl.geometry_dirty)
                     setup_level_sound_geometry(gd.p_lev[gd.a_party]);
@@ -707,8 +719,10 @@ int DSBgameloop(int new_game) {
             if (!mouse_b) {
                 mouse_lock = 0;
 
-                if (gd.mouse_mode >= MM_EYELOOK)
-                    gfxctl.do_subrend = 1;
+                if (gd.mouse_mode >= MM_EYELOOK) {
+                    gfxctl.do_subrend = 1; 
+                    inventory_unlook();
+                }
                 
                 if (gd.mouse_mode != 0) { 
                     clear_lua_cz();
@@ -728,7 +742,7 @@ int DSBgameloop(int new_game) {
             struct timer_event *c_eot_te = eot_te;
             eot_te = NULL;
                       
-            run_timers(c_eot_te, &c_eot_te, TE_FULLMODE);
+            run_timers(c_eot_te, &c_eot_te, TE_FULLMODE_NOTLOCKABLE);
             if (c_eot_te) {
                 char ermsg[200];
                 sprintf(ermsg, "Leaky eot_te queue [Type %d Data %x %x]", c_eot_te->type, c_eot_te->data, c_eot_te->altdata);

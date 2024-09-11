@@ -17,59 +17,55 @@ static void *DSB_ALLOCATOR(size_t size) {
 void *dsbrealloc(void *iptr, size_t size) {
     void *ptr;
     
-    onstack("dsbrealloc");
-    
     ptr = realloc(iptr, size);
-    if (ptr != NULL) RETURN(ptr);
+    if (ptr != NULL) {
+        return ptr;
+    }
     
     fprintf(errorlog, "Realloc of %d (at %p) failed\n", size, iptr);
     fflush(errorlog);
     
     program_puke("Realloc failed");
-    RETURN(NULL);
+    return NULL;
 }
 
 void *dsbmalloc(size_t size) {
     void *ptr;
-    
-    onstack("dsbmalloc");
-    
+
     ptr = DSB_ALLOCATOR(size);
-    if (ptr != NULL) RETURN(ptr);
+    if (ptr != NULL) {
+        return ptr;
+    }
     
     fprintf(errorlog, "@@@ Malloc of %d failed\n", size);
     fflush(errorlog);
     
     program_puke("Malloc failed");
-    RETURN(NULL);
+    return NULL;
 }       
 
 void *dsbcalloc(size_t nmemb, size_t size) {
     void *ptr;
 
-    onstack("dsbcalloc");
-
     ptr = DSB_ALLOCATOR(nmemb * size);
     if (ptr != NULL) {
         memset(ptr, 0, nmemb * size);
-        RETURN(ptr);
+        return ptr;
     }
 
     fprintf(errorlog, "@@@ Calloc of %d * %d failed\n", nmemb, size);
     fflush(errorlog);
 
     program_puke("Calloc failed");
-    RETURN(NULL);
+    return NULL;
 }
 
-char *dsbstrdup(const char *str) {
+char *dsbstrdup_nocallstack(const char *str) {
     int len;
     char *ptr;
     
-    onstack("dsbstrdup");
-    
     if (str == NULL) {
-        RETURN(NULL);
+        return NULL;
     }
     
     len = strlen(str) + 1;
@@ -77,15 +73,23 @@ char *dsbstrdup(const char *str) {
 
     if (ptr != NULL) {
         memcpy(ptr, str, len);
-        RETURN(ptr);
+        return ptr;
     }
     
     fprintf(errorlog, "@@@ Strdup of [%s] failed\n", str);
     fflush(errorlog);
     
     program_puke("Strdup failed");
-    RETURN(NULL);
+    return NULL;
 }
+
+char *dsbstrdup(const char *str) {
+    char *rv;
+    onstack("dsbstrdup");
+    rv = dsbstrdup_nocallstack(str);
+    RETURN(rv);
+}
+
 
 void dsbfree(void *mem) {
     free(mem);

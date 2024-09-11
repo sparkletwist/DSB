@@ -412,6 +412,7 @@ void selected_method(int z) {
     
     luastacksize(6);
     
+    gd.lastattackppos = gd.who_method-1;
     gd.lastmethod[gd.who_method-1][0] = z + 1;
     gd.lastmethod[gd.who_method-1][1] = gd.method_loc;
     gd.lastmethod[gd.who_method-1][2] = gd.method_obj;   
@@ -593,6 +594,8 @@ void deliver_szmsg(int msg, unsigned short parm1, unsigned short parm2) {
             if (ppos >= 0 && PPis_here[ppos]) {
                 int l;
                 
+                gd.q_put_away_zone++;
+                
                 if (gd.mouseobj)
                     l = lc_parm_int(PUTAWAY, 2, ppos, gd.mouseobj);
                 else
@@ -603,6 +606,8 @@ void deliver_szmsg(int msg, unsigned short parm1, unsigned short parm2) {
                         exit_inventory_view();
                     enter_inventory_view(ppos);
                 }
+                
+                gd.q_put_away_zone--;
             }            
         } break;
         
@@ -647,7 +652,12 @@ void got_lua_clickzone(struct clickzone *lcz, int z, int ppos) {
     c_inst = lcz[z].inst;
     p_c_inst = oinst[c_inst];
 
-    ipl = gd.party[gd.who_look] - 1;
+    // 0.79: prevent objzone from crashing
+    if (gd.who_look == -1) {
+        ipl = gd.party[gd.leader] - 1;
+    } else {
+        ipl = gd.party[gd.who_look] - 1;
+    }
 
     // a normal msgzone
     i_edata = lcz[z].ext_data;
@@ -690,8 +700,9 @@ void got_lua_clickzone(struct clickzone *lcz, int z, int ppos) {
         resize_inside(p_c_inst);
         
         FINISH_SUBREND:
-        gd.champs[ipl].load = sum_load(ipl);
-        determine_load_color(ipl);
+        if (ipl >= 0) {
+            gd.champs[ipl].load = sum_load(ipl);
+        }
         gfxctl.do_subrend = 1;
     }
     
@@ -732,7 +743,6 @@ int inv_obj_exch(int z, int ppos, int opc,
         calculate_maxload(opc+1);
         gd.queue_inv_rc--;
         if (!gd.queue_inv_rc) {
-            determine_load_color(opc);
             flush_inv_instmd_queue();
         }
         RETURN(1);
@@ -867,6 +877,20 @@ void character_taken(int lua_charid, int ppos, const char *s_message) {
     lc_parm_int("__TAKEFUNC", 0);
 }
 
+void inventory_unlook() {
+    onstack("inventory_unlook");
+    
+    if (gd.mouseobj) {
+        int game_mode = 0;
+        if (viewstate == VIEWSTATE_CHAMPION)
+            game_mode = 1;
+            
+        call_member_func2(gd.mouseobj, "on_unlook", gd.party[gd.stored_looker], game_mode);
+    }
+    
+    VOIDRETURN();
+}
+
 void inventory_clickzone(int z, int who_look, int subrend) {
     char pf[40];
     int opc;
@@ -903,6 +927,7 @@ void inventory_clickzone(int z, int who_look, int subrend) {
                 if (viewstate == VIEWSTATE_CHAMPION)
                     game_mode = 1;
                 simlookobj = call_member_func2(gd.mouseobj, "on_look", opc+1, game_mode);
+                gd.stored_looker = who_look;
                 if (simlookobj)
                     lookobj = simlookobj;
 
@@ -946,8 +971,7 @@ void inventory_clickzone(int z, int who_look, int subrend) {
                     character_taken(opc+1, position, "sys_character_reincarnated");
                     gd.gui_mode = 0;
                 } else {
-                    destroy_bitmap(gfxctl.i_subrend);
-                    gfxctl.i_subrend = pcxload("REI_NAMEENTRY", NULL);
+                    gfxctl.i_subrend = gfxctl.resrei.name;//pcxload("REI_NAMEENTRY", NULL);
                     gd.gui_mode = GUI_NAME_ENTRY;
                     gd.curs_pos = 0;
                     memset(me->name, 0, 8);
@@ -977,6 +1001,7 @@ void inventory_clickzone(int z, int who_look, int subrend) {
         
     if (z == ZONE_DISK) {
         if (lc_parm_int("sys_forbid_save", 0)) {
+            console_system_message(syslocstr.cantsave, makecol(255, 255, 255));
             VOIDRETURN();
         }
 
@@ -1099,7 +1124,7 @@ int change_leader_to(int nleader) {
     RETURN(0);
 }
 
-void control_clickzone(int z, int mx, int my) {
+int control_clickzone(int priority, int z, int mx, int my) {
     char pf[4];
     
     onstack("control_clickzone");
@@ -1115,19 +1140,22 @@ void control_clickzone(int z, int mx, int my) {
         //change_leader_to(nleader);
     }
     
-    if (*gd.gl_viewstate == VIEWSTATE_CHAMPION)
-        VOIDRETURN();
+    if (!priority) {
+        if (*gd.gl_viewstate == VIEWSTATE_CHAMPION) {
+            RETURN(0);
+        }
         
-    // a ppos zone
-    if (z >= 0 && z <= 3) {
-        int snr = z;    
-        if (gfxctl.ppos_r[snr].flags & SRF_ACTIVE) {
-            int lzr;  
-            lzr = scan_clickzones(gfxctl.ppos_r[snr].cz, mx, my, gfxctl.ppos_r[snr].cz_n);           
-            if (lzr != -1) {
-                got_lua_clickzone(gfxctl.ppos_r[snr].cz, lzr, snr);
-            }
-        }               
+        // a ppos zone
+        if (z >= 0 && z <= 3) {
+            int snr = z;    
+            if (gfxctl.ppos_r[snr].flags & SRF_ACTIVE) {
+                int lzr;  
+                lzr = scan_clickzones(gfxctl.ppos_r[snr].cz, mx, my, gfxctl.ppos_r[snr].cz_n);           
+                if (lzr != -1) {
+                    got_lua_clickzone(gfxctl.ppos_r[snr].cz, lzr, snr);
+                }
+            }               
+        }
     }
     
     // someone's right hand
@@ -1144,28 +1172,35 @@ void control_clickzone(int z, int mx, int my) {
     
     // zones 16-33 are open (screen zones 56-73)
 
-    // lua renderer controlled zones are 34-41 (screen = 74-81) 
+    // lua renderer controlled zones are 34-51 (screen = 74-91) 
     if (z >= 34 && z < 34+NUM_SR) {
         int zzid;
         int snr = z - 34;
     
         if (gfxctl.SR[snr].flags & SRF_ACTIVE) {
-            int lzr;
-            
-            lzr = scan_clickzones(gfxctl.SR[snr].cz, mx, my, gfxctl.SR[snr].cz_n);
-            
-            if (debug) {
-                fprintf(errorlog, "[LZ] Zone click at (%d, %d) zone %d has %d subzones, scan returned %d\n", mx, my,
-                    snr, gfxctl.SR[snr].cz_n, lzr); 
-            }
-            
-            if (lzr != -1) {
-                got_lua_clickzone(gfxctl.SR[snr].cz, lzr, gd.leader);
+            int sr_priority = !!(gfxctl.SR[snr].flags & SRF_PRIORITY);
+            if (sr_priority == priority) {
+                int lzr;
+                
+                lzr = scan_clickzones(gfxctl.SR[snr].cz, mx, my, gfxctl.SR[snr].cz_n);
+                
+                if (debug) {
+                    fprintf(errorlog, "[LZ] Zone click at (%d, %d) zone %d has %d subzones, scan returned %d\n", mx, my,
+                        snr, gfxctl.SR[snr].cz_n, lzr); 
+                }
+                
+                if (lzr != -1) {
+                    got_lua_clickzone(gfxctl.SR[snr].cz, lzr, gd.leader);
+                }
+                
+                if (priority) {
+                    RETURN(1);
+                }
             }
         }
     }
         
-    VOIDRETURN();
+    RETURN(0);
 }
 
 void mouse_obj_throw(int side) {
@@ -1288,7 +1323,8 @@ void objinst_click(int z, int abs_x, int abs_y) {
             
             on_click_func(cz11, putdown, rx, ry);
                      
-            if (one_item) {
+            // pass on the clicks, but only if we aren't multidraw
+            if (one_item && !(p_arch->arch_flags & ARFLAG_MULTIDRAW)) {
                 struct inst *p_inst = oinst[cz11];
                 struct inst_loc *c_dt_il = dun[p_inst->level].t[p_inst->y][p_inst->x].il[p_inst->tile];
                 
@@ -1299,19 +1335,34 @@ void objinst_click(int z, int abs_x, int abs_y) {
                         if (putdown && !oinst[putdown]) {
                             putdown = 0;
                         }
-                            
+                         
                         if (!(oinst[oid]->gfxflags & OF_INACTIVE)) {
-                            on_click_func(oid, putdown, rx, ry);
+                            struct obj_arch *p_clicked_arch = Arch(oinst[oid]->arch);
+                            // and don't pass clicks TO multidraw targets
+                            if (!(p_clicked_arch->arch_flags & ARFLAG_MULTIDRAW)) {
+                                
+                                on_click_func(oid, putdown, rx, ry);
+                                
+                                if (debug) {
+                                    char ptextmsg[200];
+                                    sprintf(ptextmsg, "PASSED TO INST %d [%d]", oid, p_clicked_arch);
+                                    console_system_message(ptextmsg, makecol(255,255,255));
+                                }                               
+                            }
                         }
                     }
                     c_dt_il = c_dt_il->n;
                 }
-                
+            }
+            
+            // and unqueue them (separate from the multidraw check)
+            if (one_item) {
                 gd.queue_rc--;
                 gd.always_queue_inst = 0;
                 if (!gd.queue_rc)
                     flush_instmd_queue();
             }
+            
         }
         
         // nothing happens if the object is gone
@@ -1744,6 +1795,7 @@ void ppos_reassignment(int ap, int oppos, int nppos, int ox, int oy, int nx, int
 
 void got_mouseclick(int b, int xx, int yy, int viewstate) {
     int zr = -1;
+    int ui_zr = -1;
     int gzx, gzy;
     int guyzone = 0;
     int ap = gd.a_party;
@@ -1773,8 +1825,9 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
             if (!mouse_obj) {
                 mouse_obj = -1;
             }
-            
+            gd.q_put_away_zone++;
             lc_parm_int("sys_put_away_click", 1, mouse_obj); 
+            gd.q_put_away_zone--;
         }
             
         VOIDRETURN();   
@@ -1900,6 +1953,14 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
         VOIDRETURN();
     }
         
+    ui_zr = scan_clickzones(cz+40, xx, yy, 40);
+    if (ui_zr != -1) {
+        int priority_return = control_clickzone(1, ui_zr, xx, yy);
+        if (priority_return) {
+            VOIDRETURN();
+        }
+    }
+        
     if (viewstate == VIEWSTATE_DUNGEON) {
         int noclick = 1;
         int lv_zr = 18;
@@ -1913,7 +1974,7 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
             
             // next tile floor drop zones allow empty hand clicks through
             if (zr == 14 || zr == 15) {
-                if (gd.mouseobj == NULL) {
+                if (gd.mouseobj == 0) {
                     multiprocess = 1;
                 }
             }
@@ -1972,10 +2033,9 @@ void got_mouseclick(int b, int xx, int yy, int viewstate) {
             
         VOIDRETURN();
     }
-    
-    zr = scan_clickzones(cz+40, xx, yy, 40);
-    if (zr != -1)
-        control_clickzone(zr, xx, yy);
+
+    if (ui_zr != -1)
+        control_clickzone(0, ui_zr, xx, yy);
     
     VOIDRETURN();
 }

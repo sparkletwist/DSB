@@ -17,6 +17,8 @@
 #include "keyboard.h"
 #include "istack.h"
 #include "trans.h"
+#include "integration.h"
+#include "integration_dsb.h"
 #include "D_res.h"
 
 //typedef void (*sigptr)(int);
@@ -55,12 +57,16 @@ extern struct graphics_control gfxctl;
 extern struct dsbkbinfo kbi;
 
 extern CRITICAL_SECTION Queue_CS;
+extern CRITICAL_SECTION Integration_CS;
+extern CRITICAL_SECTION Console_CS;
 
 extern int iname_entries;
 
 void DSBallegshutdown(void) {
     onstack("DSBallegshutdown");
+    
     allegro_exit();
+    notify_esb_and_clear_shared_testing_memory();
 
     if (gd.ini_options & INIOPT_SEMA)
         CloseHandle(semaphore);
@@ -167,6 +173,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     int df = 2;
     const char *tmp_dprefix;
     const char *tmp_locstr;
+    int setupR, setupG, setupB;
     
     #ifdef WIN32
     HANDLE dsbicon;
@@ -178,11 +185,15 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     
     init_stack();
     errorlog = fopen("log.txt", "w");
+    debug_callstack_pointer();
     
     onstack("DSBmain");
     
     v_onstack("DSBmain.install");
     InitializeCriticalSectionAndSpinCount(&Queue_CS, 1000);
+    InitializeCriticalSectionAndSpinCount(&Integration_CS, 1000);
+    InitializeCriticalSectionAndSpinCount(&Console_CS, 1000);
+    
     set_uformat(U_ASCII); // is anyone really expecting unicode support?
     install_allegro(SYSTEM_NONE, &errno, atexit);
 
@@ -208,6 +219,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     gd.gl = dsbcalloc(1, sizeof(struct gamelock));
     // make this the default until the base code asserts it
     gfxctl.console_lines = 4;
+    gfxctl.console_lineheight = 14;
     gfxctl.itemname_drawzone = 0;
     
     ws_tbl = NULL;
@@ -228,17 +240,42 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     }
     	
 	set_config_file("dsb.ini");
+	gd.testing_mode = TESTMODE_OFF;
 	
 	tmp_dprefix = get_config_string("Main", "Dungeon", NULL);
-	if (tmp_dprefix)
+	gd.esb_dpfile = NULL;
+	if (argv[0] == '-' && argv[1] == 't') { // old version
+        const char *test_path = &(argv[2]);
+        dsb_setup_esb_test_mode();
+        gd.dprefix = dsbstrdup(test_path);
+	} else if (argv[0] == '-' && argv[1] == 'e') { // 0.79+ version
+        const char *test_path = &(argv[2]);
+        int ic;
+        
+        dsb_setup_esb_test_mode();
+        gd.dprefix = dsbstrdup(test_path);
+        
+        for(ic=0;test_path[ic] != '\0';ic++) {
+            if (test_path[ic] == ':') {
+                if (test_path[ic+1] == ':') {
+                    gd.dprefix[ic] = '\0';
+                    gd.esb_dpfile = &(gd.dprefix[ic+2]);
+                    break;
+                }   
+            }
+        }
+
+    } else if (tmp_dprefix) {
         gd.dprefix = dsbstrdup(tmp_dprefix);
-    else {
+    } else {
         if (selectdungeondir() == 0) {
             poop_out("No dungeon selected. Exiting.");
         }
     }
     	
 	gd.compile = get_config_int("Main", "Compile", 0);
+	if (gd.testing_mode)
+	   gd.compile = 0;
     
     tmp_locstr = get_config_string("Settings", "Locale", "EN");
     gd.locale[0] = toupper(tmp_locstr[0]);
@@ -384,6 +421,14 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
         semaphore = CreateSemaphore(NULL, 0, 1, NULL);
         install_int_ex(DSBsemaphoretimer, BPS_TO_TIMER(T_BPS));
     }
+    
+    // get setup config before lua is loaded
+    set_config_file(fixname("setup.ini"));
+    setupR = get_config_int("Setup", "SetupR", 0);
+    setupG = get_config_int("Setup", "SetupG", 0);
+    setupB = get_config_int("Setup", "SetupB", 72);
+        
+    set_config_file("dsb.ini");
 
 	if (gd.trip_buffer && (gfx_capabilities & GFX_CAN_TRIPLE_BUFFER)) {
         fprintf(errorlog, "INIT: Setting up triple buffer\n");
@@ -391,14 +436,14 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     	scr_pages[0] = create_video_bitmap(XRES, YRES);
     	scr_pages[1] = create_video_bitmap(XRES, YRES);
     	scr_pages[2] = create_video_bitmap(XRES, YRES);
-    	clear_to_color(scr_pages[0], makecol(0,0,72));
+    	clear_to_color(scr_pages[0], makecol(setupR, setupG, setupB));
     	gd.scr_blit = 0;
     	gd.scr_show = 0;
     	request_video_bitmap(scr_pages[gd.scr_show]);
     } else {
         gd.trip_buffer = 0;
         fprintf(errorlog, "INIT: Triple buffering unavailable or disabled.\n");
-        clear_to_color(screen, makecol(0,0,72));
+        clear_to_color(screen, makecol(setupR, setupG, setupB));
         scr_pages[0] = screen;
     }
     
@@ -410,7 +455,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
         set_display_switch_mode(SWITCH_AMNESIA);
         if (!gd.trip_buffer)
             scr_pages[0] = screen; 
-        clear_to_color(scr_pages[0], makecol(0,0,72));
+        clear_to_color(scr_pages[0], makecol(setupR, setupG, setupB));
         if (gd.trip_buffer)
             request_video_bitmap(scr_pages[0]);
     }
@@ -429,7 +474,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     initmovequeue();
     blank_translation_table();
     purge_dirty_list();
-    set_config_file("dsb.ini");
+    set_config_file("dsb.ini"); //still necessary?
     set_keyboard_rate(0, 0);
     
     psxf("ALLOCATING BACKBUFFER");
@@ -441,6 +486,11 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     psxf("INITIALIZING RNG");
     gd.session_seed = clock() + time(NULL);
     srand_to_session_seed();
+    
+    if (gd.testing_mode) {
+        psxf("ESTABLISHING LINK WITH ESB");
+        announce_testing_window();
+    }
     
     psxf("INITIALIZING LUA");
     initialize_lua();
@@ -469,7 +519,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
         psxf("SAVING GRAPHICS.DSB");
         write_dsbgraphics();
     }
-    
+       
     gd.exestate = STATE_ISTARTUP;
     psxf("STARTING INTERFACE");
     import_interface_constants();
@@ -492,6 +542,7 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     
     gd.exestate = STATE_FRONTDOOR;
     gd.glowmask = NULL;
+    gd.q_put_away_zone = 0;
     i_action = show_front_door();
     if (i_action > 0) {
         gd.exestate = STATE_RESUME;
@@ -548,6 +599,8 @@ int WINAPI WinMain (HINSTANCE h_this, HINSTANCE h_prev,
     SHUTDOWN_EVERYTHING:
     DSBallegshutdown();
     DeleteCriticalSection(&Queue_CS);
+    DeleteCriticalSection(&Integration_CS);
+    DeleteCriticalSection(&Console_CS);
     
 	fprintf(errorlog, "SHUTDOWN: Shutting down...\n");
 	fclose(errorlog);

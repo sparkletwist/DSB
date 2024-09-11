@@ -11,13 +11,13 @@
 #include "editor_gui.h"
 #include "editor_menu.h"
 #include "editor_clipboard.h"
+#include "integration.h"
+#include "integration_esb.h"
 
 int SYSTEM_firstload = 1;
 
 extern INT_PTR CALLBACK ESBdproc (HWND hwnd, UINT message,
     WPARAM wParam, LPARAM lParam);
-
-extern HWND sys_hwnd;
 
 static const char Filter[] = "Lua Files\0*.lua\0";
 static char lua_buffer[4] = "lua";
@@ -71,6 +71,7 @@ void ed_menu_setup(HWND ehwnd) {
 void ed_firstload_menu_setup(HWND ehwnd) {
     HMENU h_editmenu;
     HMENU h_viewmenu;
+    HMENU h_testmenu;
     
     if (!SYSTEM_firstload)
         return;
@@ -82,6 +83,7 @@ void ed_firstload_menu_setup(HWND ehwnd) {
     AppendMenu(h_editmenu, MF_STRING, ESBM_MODE_AI, "&Add Object\tA");
     AppendMenu(h_editmenu, MF_STRING, ESBM_MODE_WSG, "Wall &Graphics\tG");
     AppendMenu(h_editmenu, MF_STRING, ESBM_MODE_PRP, "Set &Party Start\tY");
+    AppendMenu(h_editmenu, MF_STRING, ESBM_MODE_PRC, "Set &Current Position\tC");
     AppendMenu(h_editmenu, MF_STRING, ESBM_MODE_CUT, "&Cut and Paste\tX");
     AppendMenu(h_editmenu, MF_MENUBREAK, 0, NULL);
     AppendMenu(h_editmenu, MF_STRING, ESBM_LEVELINFO, "&Level Info\tW");
@@ -102,9 +104,13 @@ void ed_firstload_menu_setup(HWND ehwnd) {
     AppendMenu(h_viewmenu, MF_MENUBREAK, 0, NULL);
     AppendMenu(h_viewmenu, MF_STRING, ESBM_SEARCHFIND, "&Find Insts\tCtrl+F");
     
-
+    h_testmenu = CreatePopupMenu();
+    AppendMenu(h_testmenu, MF_STRING, ESBM_DSBTEST, "&Test in DSB");
+    AppendMenu(h_testmenu, MF_STRING, ESBM_DSBRESET, "&Reset DSB\tCtrl+D");
+    
     AppendMenu(h_menu, MF_STRING|MF_POPUP, (UINT)h_editmenu, "&Edit");
     AppendMenu(h_menu, MF_STRING|MF_POPUP, (UINT)h_viewmenu, "&View");
+    AppendMenu(h_menu, MF_STRING|MF_POPUP, (UINT)h_testmenu, "&Test");
 
     SetMenu(ehwnd, h_menu);       
     SYSTEM_firstload = 0;
@@ -157,7 +163,7 @@ void ed_menucommand(HWND hwnd, unsigned short cmd_id) {
         
         case ESBM_SAVE: {
             if (edg.valid_savename) {
-                editor_export_dungeon(edg.valid_savename);
+                editor_export_dungeon(edg.valid_savename, 0);
             } else {
                 ed_menucommand(hwnd, ESBM_SAVEAS);
                 VOIDRETURN();
@@ -180,7 +186,7 @@ void ed_menucommand(HWND hwnd, unsigned short cmd_id) {
             if (b_res) {
                 dsbfree(edg.valid_savename);
                 edg.valid_savename = dsbstrdup(fstructure.lpstrFile);
-                editor_export_dungeon(fstructure.lpstrFile);
+                editor_export_dungeon(fstructure.lpstrFile, 0);
             }
             
         } break;
@@ -188,7 +194,8 @@ void ed_menucommand(HWND hwnd, unsigned short cmd_id) {
         case ESBM_MODE_DD:
         case ESBM_MODE_AI:
         case ESBM_MODE_WSG:
-        case ESBM_MODE_PRP: 
+        case ESBM_MODE_PRP:
+        case ESBM_MODE_PRC: 
         case ESBM_MODE_CUT: {
             int targetmode = cmd_id - DRM_ESBM_MODEBASE;
             SetD(targetmode, edg.draw_arch, edg.draw_ws);
@@ -354,6 +361,14 @@ void ed_menucommand(HWND hwnd, unsigned short cmd_id) {
                 ed_main_window_mouseover(tx, ty);
             }
         } break;
+        
+        case ESBM_DSBTEST: {
+            ed_start_test_in_dsb();
+        } break;
+        
+        case ESBM_DSBRESET: {
+            ed_reset_dsb();
+        } break;
 
     }
 
@@ -439,6 +454,9 @@ void ed_quit_out(void) {
 
     if (z != 6)
         return;
+        
+    force_shutdown_dsb();
+    ed_integration_shutdown();
         
     DestroyAcceleratorTable(edg.haccel);
     PostQuitMessage(0);

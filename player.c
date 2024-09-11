@@ -10,11 +10,15 @@
 #include "istack.h"
 #include "timer_events.h"
 #include "mparty.h"
+#include "integration.h"
+#include "integration_dsb.h"
+#include "localtext.h"
 
 extern struct global_data gd;
 extern struct inventory_info gii;
 extern struct inst *oinst[NUM_INST];
 extern struct dungeon_level *dun;
+extern struct system_locstr syslocstr;
 
 extern istack istaparty;
 extern FILE *errorlog;
@@ -53,6 +57,7 @@ void party_update(void) {
     }
 }
 
+// if the party is going to change position, do it via this function
 void party_moveto(int ap, int lev, int xx, int yy, int lk, int pcc_type) {
     int oldlev, oldx, oldy, oldface;
     int force_move = 0;
@@ -72,7 +77,9 @@ void party_moveto(int ap, int lev, int xx, int yy, int lk, int pcc_type) {
     gd.p_x[ap] = xx;
     gd.p_y[ap] = yy;
     gd.p_lev[ap] = lev;
-    set_3d_soundcoords();    
+    set_3d_soundcoords(); 
+    
+    integration_party_moveto(lev, xx, yy, gd.p_face[ap]);   
 
     if (pcc_type == PCC_MOVEOFF || (actual_move && (!lk && !force_move))) {
         to_tile(oldlev, oldx, oldy, gd.p_face[ap], -1, T_FROM_TILE);      
@@ -377,8 +384,10 @@ void go_to_sleep(void) {
     int fs;
     
     fs = lc_parm_int("sys_forbid_sleep", 0);
-    if (fs)
+    if (fs) {
+        console_system_message(syslocstr.cantsleep, makecol(255, 255, 255));
         return;
+    }
         
     if (*gd.gl_viewstate == VIEWSTATE_INVENTORY)
         exit_inventory_view();
