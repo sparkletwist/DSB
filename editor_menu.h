@@ -1,6 +1,7 @@
 
 #define XDF_PARTYPOS        0x01
 #define XDF_WSPAINT         0x02
+#define XDF_PARTYCURRENTPOS 0x04
 
 enum {
     ESBM_NEW = 20000,
@@ -16,6 +17,7 @@ enum {
     ESBM_MODE_AI, // add insts
     ESBM_MODE_WSG, // paint wall
     ESBM_MODE_PRP, // party place
+    ESBM_MODE_PRC, // party current
     ESBM_MODE_CUT, // cut n paste
     
     ESBM_DO_CUT = 20115,
@@ -38,6 +40,9 @@ enum {
     ESBM_TARGREVERSE,
     ESBM_FLOATWIN,
     ESBM_SEARCHFIND = 20250,
+    
+    ESBM_DSBTEST = 20300,
+    ESBM_DSBRESET,
     
     ESBA_MODE1 = 21000,
     ESBA_MODE2,

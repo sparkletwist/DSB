@@ -79,6 +79,7 @@ enum {
     DSB_SET_GFXFLAG,
     DSB_CLEAR_GFXFLAG,
     DSB_TOGGLE_GFXFLAG,
+    DSB_RAWSET_GFXFLAG,
     DSB_GET_MFLAG,
     DSB_SET_MFLAG,
     DSB_CLEAR_MFLAG,
@@ -95,6 +96,9 @@ enum {
     DSB_SUB_TARG,
     DSB_DUNGEON_VIEW,
     DSB_BITMAP_CLEAR,
+    DSB_BITMAP_CLEAR_ALPHA,
+    DSB_BITMAP_ANIMTIMER,
+    DSB_MAKE_BLIT_FORCE_ALPHA,
     DSB_OBJZONE,
     DSB_MSGZONE,
     DSB_FIND_ARCH,
@@ -124,6 +128,7 @@ enum {
     DSB_GET_FLYSTATE,
     DSB_SET_FLYSTATE,
     DSB_GET_SLEEPSTATE,
+    DSB_SET_SLEEPSTATE,
     DSB_WAKEUP,
     DSB_SET_OPENSHOT,
     DSB_GET_FLYDELTA,
@@ -160,6 +165,7 @@ enum {
     DSB_UPDATE_II,
     DSB_UPDATE_SYSTEM,
     DSB_CUR_INV,
+    DSB_CUR_CHAMP,
     DSB_DELAY_FUNC,
     DSB_WRITE,
     DSB_GET_BAR,
@@ -242,6 +248,10 @@ enum {
     DSB_POLL_KEYBOARD,
     DSB_DMTEXTCONVERT,
     DSB_NUMBERTEXTCONVERT,
+    DSB_GET_LOOKMODE,
+    DSB_GET_ATTACKPPOS,
+    DSB_SET_ATTACKPPOS,
+    DSB_LORES_SCALING,
     ALL_LUA_FUNCS
 };
 
@@ -307,6 +317,7 @@ int expl_get_gfxflag(lua_State *LUA);
 int expl_set_gfxflag(lua_State *LUA);
 int expl_clear_gfxflag(lua_State *LUA);
 int expl_toggle_gfxflag(lua_State *LUA);
+int expl_rawset_gfxflag(lua_State *LUA);
 
 int expl_get_xp_multiplier(lua_State *LUA);
 
@@ -350,5 +361,9 @@ int expl_get_xp(lua_State *LUA);
 int expl_set_xp(lua_State *LUA);
 
 int expl_tileptr_rotate(lua_State *LUA);
+int expl_get_lookmode(lua_State *LUA);
+
+int expl_get_attackppos(lua_State *LUA);
+int expl_set_attackppos(lua_State *LUA);
 
 int expl_highrune(lua_State *LUA);

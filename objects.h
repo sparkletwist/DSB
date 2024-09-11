@@ -33,7 +33,8 @@ enum {
     INSTMD_RELOCATE,
     INSTMD_KILL_MONSTER,
     INSTMD_PTREXCH,
-    INSTMD_TROTATE
+    INSTMD_TROTATE,
+    INSTMD_INST_MOVE_ENABLE
 };
 
 enum {
@@ -223,7 +224,7 @@ struct animap {
     int numframes;
     
     short framedelay;
-    short __UNUSED_SHORT;
+    short g_fc_n;
     
     unsigned short clone_references;
     unsigned short ext_references;
@@ -484,8 +485,8 @@ struct inst {
     int charge;
 
     unsigned char moves_this_frame;
-    // not used, formerly charge
-    unsigned char Unused_char;
+    // formerly charge, now used by esb for clipboard stuff
+    unsigned char esb_iscut;
     // internal variable
     unsigned short i_var;
     
@@ -652,7 +653,7 @@ struct inventory_info {
     unsigned short stat_minimum;
     
     unsigned char filled;
-    unsigned char c_v2;
+    unsigned char max_dtypes;
     unsigned char c_v3;
     unsigned char c_v4;
     
@@ -666,7 +667,8 @@ int tablecheckpresence(const char *s_name);
 
 void place_instance(unsigned int inst, int lev, int xx, int yy, int dir, int);
 unsigned int create_instance(unsigned int objarch, int lev, int xx, int yy, int dir, int bfi);
-unsigned int next_object_inst(unsigned int archnum, int last_alloc);
+unsigned int next_object_inst(int lookonly, unsigned int archnum, unsigned int last_alloc);
+unsigned int next_object_inst_nocallstack(int lookonly, unsigned int archnum, unsigned int last_alloc);
 void purge_dirty_list(void);
 void tweak_thing(struct inst *o_i);
 void pointerize(unsigned int inst);
@@ -750,14 +752,13 @@ void flush_inv_instmd_queue(void);
 
 int iidxlookup(int integer_index);
 
-void determine_load_color(int who);
-
-void DSB_aa_scale_blit(int doit, BITMAP *source, BITMAP *dest,
+void DSB_aa_scale_blit(int doit, int lores_pixels, BITMAP *source, BITMAP *dest,
     int s_x, int s_y, int s_w, int s_h,
     int d_x, int d_y, int d_w, int d_h);
     
 struct animap *setup_animation(int, struct animap *lbmp, struct animap *bmp_table[256], int num_frames, int framedelay);
 void inventory_clickzone(int z, int who_look, int subrend);
+void inventory_unlook(void);
 void process_queued_after_from(unsigned int inst);
 
 void increment_moves_this_frame(struct inst *p_obj_inst);

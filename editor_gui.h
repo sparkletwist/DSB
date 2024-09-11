@@ -12,6 +12,7 @@ enum {
     DRM_DRAWOBJ,
     DRM_WALLSET,
     DRM_PARTYSTART,
+    DRM_PARTYCURRENT,
     DRM_CUTPASTE,
     MAX_DRM_VAL
 };
@@ -91,7 +92,7 @@ struct editor_global {
     
     unsigned char toolbars_floated;
     unsigned char ch_ex_mode;
-    unsigned char __X2;
+    unsigned char UNUSED__integration;
     unsigned char __X3;
     unsigned char __X4;
     

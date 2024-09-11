@@ -61,7 +61,7 @@ enum {
 #define AI_UNGROUP      34
 #define AI_MOVE         512
 #define AI_TURN         513
-#define AI_TIMER        514
+#define AI_TIMER        514  
 
 #define AIF_NOFASTMOVE      0x0001
 #define AIF_TOOK_ATTACK     0x0002

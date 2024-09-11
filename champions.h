@@ -2,6 +2,7 @@
 #define COND_MOUTH_GREEN    0x02
 #define COND_EYE_RED        0x04
 #define COND_EYE_GREEN      0x08
+#define COND_PRIORITY       0x10
 
 enum {
     BAR_HEALTH,

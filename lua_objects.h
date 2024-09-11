@@ -45,6 +45,8 @@ char *exs_archvar(unsigned int archnum, char *vname);
 char *exs_exvar(unsigned int inst, char *vname);
 char *exs_alt_exvar(unsigned int inst, const char *vname, const char *alt);
 
+void destroy_all_exvars(void);
+
 void do_damage_popup(unsigned int ppos, unsigned int d_amt, unsigned char dtype);
 void setbarval(unsigned int who, int which, int nval);
 

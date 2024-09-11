@@ -43,11 +43,13 @@ void *dsbmalloc(int size);
 void *dsbrealloc(void *p, size_t size); 
 void *dsbfastalloc(size_t size);
 char *dsbstrdup(const char *str);
+char *dsbstrdup_nocallstack(const char *str);
 void condfree(void *ptr);
 
 void face2delta(int face, int *dx, int *dy);
 int check_for_wall(int lev, int x, int y);
 
+int lc_dostring(const char *cmdstr);
 int lc_parm_int(const char *fname, int parms, ...);
 int lc_call_topstack(int parms, const char *fname); 
 void lc_call_topstack_two_results(int parms, const char *fname, int *p1, int *p2); 

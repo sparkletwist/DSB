@@ -116,6 +116,7 @@ struct sysicons {
 
 #define SRF_ACTIVE      0x01
 #define SRF_HANDLED     0x02
+#define SRF_PRIORITY    0x04
 typedef struct _system_renderer {
     unsigned int flags;
     
@@ -139,6 +140,16 @@ enum {
     SR_USER3,
     SR_USER4,
     SR_USER5,
+    SR_USER_X0,
+    SR_USER_X1,
+    SR_USER_X2,
+    SR_USER_X3,
+    SR_USER_X4,
+    SR_USER_X5,
+    SR_USER_X6,
+    SR_USER_X7,
+    SR_USER_X8,
+    SR_USER_X9,
     NUM_SR
 };
 
@@ -175,9 +186,20 @@ enum {
     MAX_DOORINFO    
 };
 
+struct resrei_items {
+    int subrend_mode;
+    int x;
+    int y;
+    
+    BITMAP *res;
+    BITMAP *rei;
+    BITMAP *resrei;
+    BITMAP *name;  
+};
+
 struct graphics_control {
     unsigned char do_subrend;
-    unsigned char UNUSED_subrend_bkg; // draw background as a subrenderer, maybe?
+    unsigned char subrend_targ_valid;
     unsigned char reassert_sys_subrend;
     unsigned char subrend_targ_init;
     
@@ -185,6 +207,8 @@ struct graphics_control {
     
     struct animap *l_viewport_rtarg;
     struct alt_targ *l_alt_targ;
+    
+    unsigned int console_lineheight;
     
     unsigned char console_lines;
     unsigned char itemname_drawzone;
@@ -239,6 +263,8 @@ struct graphics_control {
     unsigned int shade[MAX_SHOTYPES][MAX_SHDIRS][3];
     
     int doorinfo[MAX_DOORINFO][3];
+    
+    struct resrei_items resrei;
 };
 
 struct sound_control {
@@ -280,8 +306,11 @@ struct global_data {
     unsigned int rng_index;
     int color_depth;
     
-    // global framecounter
-    // maxes out at 479001600
+    // max out at 479001600
+    unsigned int g_framecounter[16];
+    
+    // old global framecounter
+    // copy of g_framecounter[0] now
     unsigned int framecounter;
     
     // for determing when to load/unload resources
@@ -297,12 +326,13 @@ struct global_data {
     int uprefix;        // use the same prefix value? (don't src everything 2x)
     char *dprefix;
     char *bprefix;
+    char *esb_dpfile; // uses the same memory as dprefix
     
     short vxo;
     short vyo;
     
     short vyo_off;
-    short __UNUSED_Y;
+    short lores_pixels;
 
     unsigned char coerce_alpha;
     unsigned char loaded_tga;
@@ -430,7 +460,7 @@ struct global_data {
     unsigned char WI_4;
     
     char zero_int_result;
-    char z_c2;
+    char UNUSED__z_c2;
     char run_everywhere_count;
     char a_tickclock;
     
@@ -456,12 +486,17 @@ struct global_data {
     char gui_down_button;
     unsigned char gui_button_wait;
     unsigned char gui_next_mode;
-    char gui_v4;
+    char testing_mode;
     
     // the renderer is now on the lua side, this is deprecated
     char *UNUSED_barname[3];
     
     unsigned short lastmethod[4][3];
+    
+    char lastattackppos;
+    char __unused_char_ppos_1;
+    char stored_looker;
+    char q_put_away_zone;
     
     // which champions from "champs" are in the party
     int party[4];
@@ -481,12 +516,19 @@ struct global_data {
     unsigned char farcloudhack;
     unsigned char noresizehack;
     unsigned char ungrouphack;
-    unsigned char hack3;
+    unsigned char UNUSED__hack3;
        
     int mouse_mode;
     int mouse_guy;
     
     unsigned int depointerized_inst;
+    
+    // used by ESB integration
+    unsigned int esb_reserved_inst;
+    unsigned char integration_action;
+    unsigned char UNUSED__integ2;
+    unsigned char UNUSED__integ3;
+    unsigned char UNUSED__integ4;
     
     int infobox;
     
@@ -520,7 +562,7 @@ struct global_data {
     
     unsigned int num_sysarch;
     
-    unsigned int max_dtypes;
+    unsigned int __UNUSED_max_dtypes;
     
     unsigned short atk_popup;
     unsigned short queue_monster_deaths;
@@ -584,7 +626,7 @@ struct global_data {
 #define DSB_LUA_SOUND 64
 
 #define MAJOR_VERSION 0
-#define MINOR_VERSION 76
+#define MINOR_VERSION 82
 //#define SUB_VERSION 'D'
 
 enum {

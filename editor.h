@@ -33,7 +33,7 @@ void SetD(unsigned char dmode, char *s_etext, char *s_wtext);
 
 void ESBsysmsg(char *c, int);
 int editor_load_dungeon(char *fname);
-void editor_export_dungeon(const char *fname);
+void editor_export_dungeon(const char *fname, int fortesting);
 void ed_tag_l(const char *s_add_me);
 char *ed_makeselexvar(HWND hlist, int *p, char *dt);
 

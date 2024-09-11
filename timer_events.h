@@ -22,8 +22,10 @@ enum {
 
 #define TE_DECMODE      0x02
 #define TE_RUNMODE      0x04
+#define TE_NOTLOCKABLE     0x10
 
 #define TE_FULLMODE     0x06
+#define TE_FULLMODE_NOTLOCKABLE    0x16    
 
 struct timer_event {    
     int type;

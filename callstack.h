@@ -19,3 +19,4 @@ void addstackc(char c);
 void fix_inst_int(void);
 
 void CHECKOUT(int sl);
+void debug_callstack_pointer();

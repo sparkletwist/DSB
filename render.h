@@ -12,6 +12,8 @@ struct animap *get_rend_view(int o_type, struct obj_arch *p_obj_arch,
 struct animap *get_monster_view(struct inst *p_inst,
     struct obj_arch *p_arch, int sm, int p_face, int tflags, int *info_flags);
     
+void draw_sr_with_alpha(BITMAP *scx, int i_index, int px, int py);
+    
 void adv_inst_and_cond_framecounters(void);
 void adv_crmotion_with_missing(int m);
 void call_lua_inventory_renderer(BITMAP *scx, int lwho, int bx, int by, int namedraw);

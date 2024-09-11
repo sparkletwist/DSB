@@ -42,10 +42,10 @@ enum {
     __MM_UNUSED6,
     __MM_UNUSED7,
     __MM_UNUSED8,
+    // don't define any new modes after this! it adds the object id to mouse_mode
     MM_EYELOOK,
     MM_EYELOOKOBJ
 };
-
 
 #define G_ALT_ICON  0x0001
 // duplicates OF_INACTIVE
@@ -60,6 +60,9 @@ enum {
 #define TINTFLAG_NORED      0x01
 #define TINTFLAG_NOGREEN    0x02
 #define TINTFLAG_NOBLUE     0x04
+
+// used for debugging
+#define AF_DEBUG_DISABLE_ALPHA    256
 
 struct alt_targ {
     BITMAP *targ;
@@ -92,7 +95,7 @@ void conddestroy_animap(struct animap *ani);
 void setup_res_rei_cz(void);
 void setup_rei_name_entry_cz(void);
 
-void draw_name_entry(BITMAP *scx);
+void draw_name_entry(BITMAP *scx, int sbx, int sby);
 
 void setup_misc_inv(BITMAP *scx, int, int, int);
 
@@ -131,7 +134,7 @@ void init_colordepth(int cd);
 
 void draw_lua_errors(BITMAP *scx);
 
-int draw_objicon(BITMAP *scx, unsigned int inst, int mx, int my, int lit);
+int draw_objicon(BITMAP *scx, int afix, unsigned int inst, int mx, int my, int lit);
 int draw_gfxicon(BITMAP *scx, struct animap *ani, int mx, int my, int lit, struct inst *p);
 int draw_gfxicon_af(BITMAP *scx, struct animap *ani, int mx, int my, int lit,
     struct inst *p_inst, int alphafix);
@@ -169,6 +172,7 @@ int trapblit(int drawmode, BITMAP *scx, int bx, int by, struct dtile *ct,
     int xc, int yc, int oo, int flags, struct animap *floor, struct animap *roof);
     
 int bmp_alpha_scan(BITMAP *ibmp);
+void bmp_alpha_force(BITMAP *ibmp);
 struct animap *prepare_animap_from_bmp(BITMAP *in_bmp, int targa);
 struct animap *prepare_lod_animap(const char *name, const char *longname);
 void lod_use(struct animap *lani);
@@ -185,3 +189,5 @@ void thick_line(BITMAP *bmp, float x, float y, float x_, float y_,
 
 void distort_viewport(int process, BITMAP *dest, int bx, int by, int t_val);
 void pushtxt_cons_bmp(const char *textmsg, int col, struct animap *bgcol, int ttl);
+
+void increment_framecounters();
